@@ -1,0 +1,28 @@
+/* Ensure dropdowns are not cut off */
+.dropdown-menu-container {
+  position: relative;
+}
+
+.dropdown-menu-container > div {
+  position: absolute;
+  right: 0;
+  z-index: 50;
+  min-width: 10rem;
+  transform: none !important;
+}
+
+/* For dropdowns that might get cut off at the bottom */
+@media (max-height: 700px) {
+  .dropdown-menu-container > div {
+    max-height: 80vh;
+    overflow-y: auto;
+  }
+}
+
+/* For dropdowns that might get cut off at the right edge */
+@media (max-width: 640px) {
+  .dropdown-menu-container > div {
+    right: auto;
+    left: 0;
+  }
+}

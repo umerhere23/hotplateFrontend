@@ -1,0 +1,4 @@
+/* Ensure the image editor is properly styled */
+.FIE_root {
+  z-index: 9999 !important;
+}

@@ -1,0 +1,80 @@
+import type { Event } from "@/services/api"
+
+// This is mock data for testing the UI
+// You can remove this file when connecting to your real API
+export const mockEvents: Event[] = [
+  {
+    id: "1",
+    title: "Hallow Park Pastry Event",
+    date: "2025-02-19",
+    startTime: "2:43 PM",
+    endTime: "9:45 PM",
+    location: "Fishermans Wharf",
+    address: "123 Wharf St",
+    city: "Monterey, CA",
+    status: "completed",
+    imageUrl: "/assorted-pastries.png",
+    pickupOption: "pickup",
+    timeOption: "asap",
+  },
+  {
+    id: "2",
+    title: "Downtown Food Festival",
+    date: "2025-02-22",
+    startTime: "11:00 AM",
+    endTime: "8:00 PM",
+    location: "City Center",
+    address: "456 Main St",
+    city: "San Francisco, CA",
+    status: "upcoming",
+    imageUrl: "/food-festival.png",
+    pickupOption: "both",
+    timeOption: "scheduled",
+  },
+  {
+    id: "3",
+    title: "Beachside BBQ",
+    date: "2025-02-20",
+    startTime: "12:00 PM",
+    endTime: "6:00 PM",
+    location: "Ocean Beach",
+    address: "789 Beach Rd",
+    city: "Santa Cruz, CA",
+    status: "active",
+    imageUrl: "/outdoor-bbq-feast.png",
+    pickupOption: "pickup",
+    timeOption: "asap",
+  },
+  {
+    id: "4",
+    title: "Hallow Park Pastry Event",
+    date: "2025-02-19",
+    startTime: "2:43 PM",
+    endTime: "9:45 PM",
+    location: "Fishermans Wharf",
+    address: "123 Wharf St",
+    city: "Monterey, CA",
+    status: "completed",
+    imageUrl: "/assorted-pastries.png",
+    pickupOption: "pickup",
+    timeOption: "asap",
+  },
+  {
+    id: "5",
+    title: "Hallow Park Pastry Event",
+    date: "2025-02-19",
+    startTime: "2:43 PM",
+    endTime: "9:45 PM",
+    location: "Fishermans Wharf",
+    address: "123 Wharf St",
+    city: "Monterey, CA",
+    status: "completed",
+    imageUrl: "/assorted-pastries.png",
+    pickupOption: "pickup",
+    timeOption: "asap",
+  },
+]
+
+// For testing, modify the getEvents function in api.ts to use this mock data
+// Replace the fetch call with:
+// return mockEvents;
