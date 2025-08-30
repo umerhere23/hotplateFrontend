@@ -1,103 +1,160 @@
-import Image from "next/image";
+"use client"
+
+import { useState } from "react"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { z } from "zod"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { Label } from "@/components/ui/label"
+import Image from "next/image"
+import toast from "react-hot-toast"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { useAuthRedirect } from "@/hooks/use-auth-redirect"
+
+// Login form schema
+const loginSchema = z.object({
+  email: z.string().email({ message: "Please enter a valid email" }),
+})
+
+type LoginFormValues = z.infer<typeof loginSchema>
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const router = useRouter()
+  const [isLoading, setIsLoading] = useState(false)
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  // Redirect if user is already logged in
+  useAuthRedirect()
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api"
+
+  
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LoginFormValues>({
+    resolver: zodResolver(loginSchema),
+  })
+
+  const onSubmit = async (data: LoginFormValues) => {
+    setIsLoading(true)
+
+    try {
+      // Check if the email exists in the system
+      const response = await fetch(`${API_URL}/check-email`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          email: data.email,
+        }),
+      })
+
+      const responseData = await response.json()
+
+      if (!response.ok) {
+        throw new Error(responseData.message || "Email not found")
+      }
+
+      // Store user data for verification
+      localStorage.setItem("userEmail", data.email)
+      localStorage.setItem("userPhone", responseData.data.phone_number)
+      localStorage.setItem("userId", responseData.data.user_id.toString())
+
+      toast.success("Email found! Redirecting to verification...", {
+        style: {
+          borderRadius: "10px",
+          background: "#22c55e",
+          color: "#fff",
+        },
+      })
+
+      // Redirect to verification page
+      setTimeout(() => {
+        router.push(`/verify`)
+      }, 2000)
+    } catch (error) {
+      console.error(error)
+      toast.error(error instanceof Error ? error.message : "Email not found. Please check your email or sign up.", {
+        style: {
+          borderRadius: "10px",
+          background: "#ef4444",
+          color: "#fff",
+        },
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  return (
+    <main className="flex min-h-screen bg-[#fff5f0]">
+      <div className="flex flex-col md:flex-row items-center justify-center w-full max-w-7xl mx-auto p-4">
+        <div className="w-full md:w-1/2 max-w-md">
+          <div className="bg-white rounded-lg shadow-sm p-8 md:p-10">
+            <div className="text-center mb-8">
+              <h1 className="text-3xl font-medium mb-2">Welcome back!</h1>
+              <p className="text-gray-500">Sign in to your {process.env.NEXT_PUBLIC_SITE_NAME} account</p>
+            </div>
+
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email" className="text-sm font-medium">
+                  Email
+                </Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="chef@example.com"
+                  className="border-[#e1e1e1] h-12"
+                  {...register("email")}
+                />
+                {errors.email && <p className="text-red-500 text-sm">{errors.email.message}</p>}
+              </div>
+
+              <div className="pt-4">
+                <Button
+                  type="submit"
+                  disabled={isLoading}
+                  className={`
+                    w-full bg-[#ec711e] hover:bg-[#d86518] text-white h-12 rounded-full flex items-center justify-center
+                    ${isLoading ? "cursor-not-allowed opacity-70" : "cursor-pointer"}
+                  `}
+                >
+                  {isLoading ? (
+                    <div className="animate-spin rounded-full h-6 w-6 border-4 border-white border-t-transparent"></div>
+                  ) : (
+                    "Continue"
+                  )}
+                </Button>
+              </div>
+            </form>
+
+            <div className="mt-6 text-center">
+              <p className="text-gray-600">
+                Don&apos;t have an account?{" "}
+                <Link href="/signup" className="text-[#ec711e] hover:underline">
+                  Sign up
+                </Link>
+              </p>
+            </div>
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
-  );
+        <div className="hidden md:block w-full md:w-1/2 p-4">
+          <div className="relative h-[500px] w-full">
+            <Image
+              src="/login-image.svg?height=800&width=800"
+              alt="Chef cooking illustration"
+              fill
+              className="object-contain"
+              priority
+            />
+          </div>
+        </div>
+      </div>
+    </main>
+  )
 }
