@@ -2,7 +2,7 @@ import type React from "react"
 import { Sidebar } from "@/components/sidebar"
 import { ThemeProvider } from "@/components/theme-provider"
 
-export default function OrderLayout({
+export default function InboxLayout({
   children,
 }: {
   children: React.ReactNode

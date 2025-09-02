@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { IconForNav } from "@/components/ui/icons-fix"
 
-export default function OrderPage() {
+export default function CustomersPage() {
   return (
     <div className="flex min-h-screen bg-[#f6f6f6]">
       {/* Sidebar */}

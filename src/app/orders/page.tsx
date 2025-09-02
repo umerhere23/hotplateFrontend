@@ -6,7 +6,7 @@ import { Search, SlidersHorizontal } from "lucide-react"
 import * as Popover from "@radix-ui/react-popover";
 import { MoreVertical, Mail, Send, Download, FileText } from "lucide-react";
 
-export default function Dashboard() {
+export default function Order() {
     const [activeTab, setActiveTab] = useState("prep")
     const [statusTab, setStatusTab] = useState("open")
 
