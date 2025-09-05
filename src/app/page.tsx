@@ -39,55 +39,11 @@ export default function Home() {
 
   const onSubmit = async (data: LoginFormValues) => {
     setIsLoading(true)
-
-    try {
-      // Check if the email exists in the system
-      const response = await fetch(`${API_URL}/check-email`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify({
-          email: data.email,
-        }),
-      })
-
-      const responseData = await response.json()
-
-      if (!response.ok) {
-        throw new Error(responseData.message || "Email not found")
-      }
-
-      // Store user data for verification
-      localStorage.setItem("userEmail", data.email)
-      localStorage.setItem("userPhone", responseData.data.phone_number)
-      localStorage.setItem("userId", responseData.data.user_id.toString())
-
-      toast.success("Email found! Redirecting to verification...", {
-        style: {
-          borderRadius: "10px",
-          background: "#22c55e",
-          color: "#fff",
-        },
-      })
-
-      // Redirect to verification page
-      setTimeout(() => {
-        router.push(`/verify`)
-      }, 2000)
-    } catch (error) {
-      console.error(error)
-      toast.error(error instanceof Error ? error.message : "Email not found. Please check your email or sign up.", {
-        style: {
-          borderRadius: "10px",
-          background: "#ef4444",
-          color: "#fff",
-        },
-      })
-    } finally {
-      setIsLoading(false)
-    }
+    // Prototype: skip email check and go to next step
+    setTimeout(() => {
+      router.push(`/verify`)
+    }, 500)
+    setIsLoading(false)
   }
 
   return (

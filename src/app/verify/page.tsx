@@ -14,10 +14,11 @@ export default function VerifyPage() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [verificationCode, setVerificationCode] = useState("")
-  const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null)
-  const [phoneNumber, setPhoneNumber] = useState("")
-  const [userId, setUserId] = useState("")
-  const [step, setStep] = useState("loading") // loading, ready, code-sent, verifying
+  // Prototype: skip backend and Firebase logic
+  // const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null)
+  // const [phoneNumber, setPhoneNumber] = useState("")
+  // const [userId, setUserId] = useState("")
+  const [step, setStep] = useState("ready") // Directly show ready step
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   // Redirect if user is already logged in
@@ -30,33 +31,7 @@ export default function VerifyPage() {
   const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api"
 
   useEffect(() => {
-    // Get user data from localStorage
-    const storedPhone = localStorage.getItem("userPhone")
-    const storedUserId = localStorage.getItem("userId")
-
-    if (storedPhone) {
-      // Format phone number for Firebase (needs +country code)
-      let formattedPhone = storedPhone
-      if (!formattedPhone.startsWith("+")) {
-        // If it starts with 1, assume US
-        if (formattedPhone.startsWith("1")) {
-          formattedPhone = `+${formattedPhone}`
-        } else {
-          formattedPhone = `+${formattedPhone}`
-        }
-      }
-      setPhoneNumber(formattedPhone)
-      console.log("Formatted phone number:", formattedPhone)
-    } else {
-      console.warn("No phone number found in localStorage")
-      setErrorMessage("No phone number found. Please go back to the registration page.")
-    }
-
-    if (storedUserId) {
-      setUserId(storedUserId)
-    } else {
-      console.warn("No user ID found in localStorage")
-    }
+  // Prototype: skip fetching user data and backend logic
 
     // Initialize reCAPTCHA when component mounts
     setTimeout(() => {
@@ -76,189 +51,20 @@ export default function VerifyPage() {
   }, [])
 
   const initRecaptcha = () => {
-    // Clear any existing reCAPTCHA
-    if (recaptchaVerifierRef.current) {
-      try {
-        recaptchaVerifierRef.current.clear()
-      } catch (error) {
-        console.error("Error clearing existing reCAPTCHA:", error)
-      }
-    }
-
-    // Make sure we're in the browser environment
-    if (typeof window !== "undefined" && recaptchaContainerRef.current) {
-      try {
-        console.log("Initializing reCAPTCHA...")
-
-        // Create a new RecaptchaVerifier instance
-        recaptchaVerifierRef.current = new RecaptchaVerifier(auth, recaptchaContainerRef.current, {
-          size: "normal",
-          callback: () => {
-            // reCAPTCHA solved, allow sending verification code
-            console.log("reCAPTCHA solved successfully")
-            setStep("ready")
-            setErrorMessage(null)
-          },
-          "expired-callback": () => {
-            // Reset reCAPTCHA
-            console.log("reCAPTCHA expired")
-            toast.error("reCAPTCHA expired. Please solve it again.")
-            setErrorMessage("reCAPTCHA expired. Please solve it again.")
-            initRecaptcha()
-          },
-        })
-
-        // Render the reCAPTCHA
-        recaptchaVerifierRef.current
-          .render()
-          .then(() => {
-            console.log("reCAPTCHA rendered successfully")
-          })
-          .catch((error) => {
-            console.error("Error rendering reCAPTCHA:", error)
-            setErrorMessage(`Failed to render reCAPTCHA: ${error.message}`)
-            toast.error("Failed to load reCAPTCHA. Please refresh the page.")
-          })
-      } catch (error: any) {
-        console.error("Error initializing reCAPTCHA:", error)
-        setErrorMessage(`Failed to initialize reCAPTCHA: ${error.message}`)
-        toast.error("Failed to initialize reCAPTCHA. Please refresh the page.")
-      }
-    } else {
-      console.error("recaptchaContainerRef is not available or not in browser environment")
-      setErrorMessage("reCAPTCHA container not found. Please refresh the page.")
-    }
+  // Prototype: skip reCAPTCHA logic
   }
 
   const sendVerificationCode = async () => {
-    if (!phoneNumber) {
-      const errorMsg = "Phone number is required"
-      setErrorMessage(errorMsg)
-      toast.error(errorMsg)
-      return
-    }
-
-    if (!recaptchaVerifierRef.current) {
-      const errorMsg = "reCAPTCHA not initialized. Please refresh the page."
-      setErrorMessage(errorMsg)
-      toast.error(errorMsg)
-      return
-    }
-
-    setIsLoading(true)
-    setErrorMessage(null)
-
-    try {
-      console.log("Sending verification code to:", phoneNumber)
-      const confirmation = await signInWithPhoneNumber(auth, phoneNumber, recaptchaVerifierRef.current)
-      console.log("Verification code sent successfully")
-      setConfirmationResult(confirmation)
-      setStep("code-sent")
-
-      toast.success("Verification code sent to your phone!", {
-        style: {
-          borderRadius: "10px",
-          background: "#22c55e",
-          color: "#fff",
-        },
-      })
-    } catch (error: any) {
-      console.error("Error sending verification code:", error)
-      const errorMsg = `Failed to send verification code: ${error.code || error.message}`
-      setErrorMessage(errorMsg)
-      toast.error(errorMsg, {
-        style: {
-          borderRadius: "10px",
-          background: "#ef4444",
-          color: "#fff",
-        },
-      })
-
-      // Reset reCAPTCHA
-      initRecaptcha()
-    } finally {
-      setIsLoading(false)
-    }
+  // Prototype: skip sending verification code
+  setStep("code-sent")
   }
 
   const verifyCode = async () => {
-    if (!confirmationResult) {
-      const errorMsg = "Please request a verification code first"
-      setErrorMessage(errorMsg)
-      toast.error(errorMsg)
-      return
-    }
-
-    if (!verificationCode || verificationCode.length !== 6) {
-      const errorMsg = "Please enter a valid 6-digit verification code"
-      setErrorMessage(errorMsg)
-      toast.error(errorMsg)
-      return
-    }
-
-    setIsLoading(true)
+    // Prototype: skip code verification and backend
     setStep("verifying")
-    setErrorMessage(null)
-
-    try {
-      // Confirm the verification code
-      console.log("Verifying code:", verificationCode)
-      const userCredential = await confirmationResult.confirm(verificationCode)
-      console.log("Code verified successfully")
-
-      // Get the Firebase ID token
-      const idToken = await userCredential.user.getIdToken()
-      console.log("Got Firebase ID token")
-
-      // Send the token to your backend to verify the user
-      const response = await fetch(`${API_URL}/verify-firebase-token`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify({
-          firebase_token: idToken,
-          user_id: userId,
-        }),
-      })
-
-      const responseData = await response.json()
-
-      if (!response.ok) {
-        throw new Error(responseData.message || "Verification failed")
-      }
-
-      // Store authentication token
-      localStorage.setItem("auth_token", responseData.data.access_token)
-
-      toast.success("Phone verified successfully! Redirecting to dashboard...", {
-        style: {
-          borderRadius: "10px",
-          background: "#22c55e",
-          color: "#fff",
-        },
-      })
-
-      // Redirect to dashboard
-      setTimeout(() => {
-        router.push("/dashboard")
-      }, 2000)
-    } catch (error: any) {
-      console.error("Error verifying code:", error)
-      const errorMsg = `Invalid verification code: ${error.code || error.message}`
-      setErrorMessage(errorMsg)
-      toast.error(errorMsg, {
-        style: {
-          borderRadius: "10px",
-          background: "#ef4444",
-          color: "#fff",
-        },
-      })
-      setStep("code-sent") // Go back to code entry step
-    } finally {
-      setIsLoading(false)
-    }
+    setTimeout(() => {
+      router.push("/dashboard")
+    }, 1000)
   }
 
   // For testing purposes - use a test phone number
@@ -273,12 +79,10 @@ export default function VerifyPage() {
         <div className="w-full md:w-1/2 max-w-md">
           <div className="bg-white rounded-lg shadow-sm p-8 md:p-10">
             <div className="text-center mb-8">
-              <h1 className="text-3xl font-medium mb-2">Verify Your Phone</h1>
-              {/* Only show caption during loading and ready steps */}
+              <h1 className="text-3xl font-medium mb-2">Verify Prototype</h1>
               {(step === "loading" || step === "ready") && (
-                <p className="text-gray-500">We need to verify your phone number</p>
+                <p className="text-gray-500">Prototype: skipping phone verification</p>
               )}
-              {phoneNumber && <p className="mt-2 font-medium text-gray-700">{phoneNumber}</p>}
             </div>
 
             {/* Error message display */}
@@ -305,10 +109,10 @@ export default function VerifyPage() {
             {step === "ready" && (
               <div className="space-y-6">
                 <p className="text-center text-gray-600 mb-4">
-                  Click the button below to send a verification code to your phone
+                  Prototype: skipping phone verification step
                 </p>
                 <Button
-                  onClick={sendVerificationCode}
+                  onClick={() => setStep("code-sent")}
                   disabled={isLoading}
                   className={`
                     w-full bg-[#ec711e] hover:bg-[#d86518] text-white h-12 rounded-full flex items-center justify-center
@@ -318,16 +122,9 @@ export default function VerifyPage() {
                   {isLoading ? (
                     <div className="animate-spin rounded-full h-6 w-6 border-4 border-white border-t-transparent"></div>
                   ) : (
-                    "Send Verification Code"
+                    "Continue"
                   )}
                 </Button>
-
-                {/* Test button for development */}
-                <div className="text-center mt-4">
-                  <button onClick={useTestPhoneNumber} className="text-sm text-gray-500 underline">
-                    Use test phone number
-                  </button>
-                </div>
               </div>
             )}
 
