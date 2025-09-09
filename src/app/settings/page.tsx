@@ -11,6 +11,25 @@ interface User {
 
 
 export default function SettingsPage() {
+
+    const [users, setUsers] = useState<User[]>([
+        { name: "Account Admin", phone: "+19786159222", role: "Owner", isOwner: true },
+    ]);
+    const [showForm, setShowForm] = useState(false);
+    const [form, setForm] = useState<User>({ name: "", phone: "", role: "No permissions" });
+    const [editIndex, setEditIndex] = useState<number | null>(null);
+    const [allowTipping, setAllowTipping] = useState(true);
+    const [tipOption, setTipOption] = useState("15% / 20% / 25%");
+    const [defaultZero, setDefaultZero] = useState(false);
+    const [cash, setCash] = useState(false);
+    const [venmo, setVenmo] = useState(false);
+    const [zelle, setZelle] = useState(false);
+    const [acknowledge, setAcknowledge] = useState(false);
+    const [confirmationEnabled, setConfirmationEnabled] = useState(true);
+    const [reminder24Enabled, setReminder24Enabled] = useState(false);
+    const [reminder2Enabled, setReminder2Enabled] = useState(false);
+    const [reminder15Enabled, setReminder15Enabled] = useState(false);
+    const [completedEnabled, setCompletedEnabled] = useState(false);
     const links = [
         {
             title: "Storefront",
@@ -67,14 +86,6 @@ export default function SettingsPage() {
     const scrollToSection = (key: TabKey) => {
         sectionRefs[key].current?.scrollIntoView({ behavior: "smooth" });
     };
-
-    const [users, setUsers] = useState<User[]>([
-        { name: "Account Admin", phone: "+19786159222", role: "Owner", isOwner: true },
-    ]);
-
-    const [showForm, setShowForm] = useState(false);
-    const [form, setForm] = useState<User>({ name: "", phone: "", role: "No permissions" });
-    const [editIndex, setEditIndex] = useState<number | null>(null);
 
     const handleSave = () => {
         if (!form.name || !form.phone) return;
@@ -396,6 +407,7 @@ export default function SettingsPage() {
                 </div>
                 {/* Storefront tab End */}
 
+                {/* team tab Start */}
                 <div ref={sectionRefs.team} className="p-6 bg-white  rounded-xl shadow-lg border border-gray-200 w-full">
                     <h3 className="text-lg font-semibold mb-4">Your Team</h3>
                     {users.map((user, idx) => (
@@ -491,7 +503,9 @@ export default function SettingsPage() {
                         </button>
                     )}
                 </div>
+                {/* team tab End */}
 
+                {/* drop tab Start */}
                 <div ref={sectionRefs.drop} className="p-6 bg-white  rounded-xl shadow-lg border border-gray-200 w-full">
                     <h3 className="text-lg font-semibold mb-4">Drop Controls</h3>
                     <p className="text-sm text-gray-500 mt-3 mb-4">
@@ -547,25 +561,365 @@ export default function SettingsPage() {
                         </span>
                     </div>
                 </div>
+                {/* drop tab End */}
 
-                <div ref={sectionRefs.checkout} className="p-4 border rounded-md bg-gray-50">
-                    <h3 className="font-medium mb-2">Checkout</h3>
-                    <p className="text-sm text-gray-600">Checkout settings here...</p>
+                {/* checkout tab Start */}
+                <div ref={sectionRefs.checkout} className="p-6 bg-white  rounded-xl shadow-lg border border-gray-200 w-full">
+                    <div>
+                        <h2 className="text-lg font-semibold">Checkout</h2>
+                        <div className="flex items-center mt-3">
+                            <label className="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" className="sr-only peer" />
+                                <div className="w-10 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:bg-black"></div>
+                                <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow peer-checked:translate-x-5 transition"></div>
+                            </label>
+                            <span className="text-gray-700 ms-3">Allow Tipping</span>
+
+                        </div>
+
+                        {/* Tip Options */}
+                        {allowTipping && (
+                            <div className="mt-4 space-y-3">
+                                <label className="block text-gray-700 text-sm mb-1">
+                                    Tip Options
+                                </label>
+                                <select
+                                    value={tipOption}
+                                    onChange={(e) => setTipOption(e.target.value)}
+                                    className="w-60 border border-gray-200 shadow-sm rounded-md px-3 py-2 text-gray-700"
+                                >
+                                    <option>15% / 20% / 25%</option>
+                                    <option>10% / 15% / 20%</option>
+                                    <option>10% / 20% / 30%</option>
+                                </select>
+
+                                <div className="flex items-center gap-2">
+                                    <label className="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" className="sr-only peer" />
+                                        <div className="w-10 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:bg-black"></div>
+                                        <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow peer-checked:translate-x-5 transition"></div>
+                                    </label>
+                                    <span className="text-sm text-gray-700">
+                                        Make $0.00 the default
+                                    </span>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* External Payments */}
+                    <div className=" border rounded-md border-gray-300 p-4 mt-4">
+                        <h3 className="font-semibold text-gray-800">External Payments</h3>
+                        <p className="text-sm text-gray-500 mt-1">
+                            Besides Cards, Apple Pay, and Google Pay, you can allow customers to
+                            pay you outside of Hotplate with these methods. You are responsible
+                            for ensuring your customers complete payment.
+                        </p>
+
+                        <div className="mt-4 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center">
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        viewBox="145.25 145.25 221.5 221.5"
+                                        className="mr-[1.45rem] h-4 w-4"
+                                    >
+                                        {/* Outer Circle */}
+                                        <circle
+                                            cx="256"
+                                            cy="256"
+                                            r="100.75"
+                                            fill="none"
+                                            stroke="rgb(8, 59, 67)"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth="20"
+                                        />
+
+                                        {/* Inner Path */}
+                                        <path
+                                            d="M283.87 254.81c-3.46-2.72-8.61-4.9-15.32-6.48l-14.72-3.47c-2.37-.55-4.3-1.05-5.91-1.52a23.6 23.6 0 0 1-4.73-1.76 5.17 5.17 0 0 1-3-4.91 6.57 6.57 0 0 1 3.22-5.91 13.8 13.8 0 0 1 4.42-1.82 24.5 24.5 0 0 1 5.54-.57 22 22 0 0 1 9.06 1.66l.45.22a9.6 9.6 0 0 1 4.67 4.74 10.34 10.34 0 0 0 9.36 6.25h.62a10.14 10.14 0 0 0 8.58-4.72 10 10 0 0 0 .64-9.64 25.4 25.4 0 0 0-8-9.76 37 37 0 0 0-13.36-6.21v-2.78a10 10 0 0 0-20 0v2.26c-6.79 1.11-12.32 3.55-16.47 7.28a26.22 26.22 0 0 0-9 20.26c0 8.91 3.15 15.59 9.37 19.85 3.39 2.35 9.17 4.45 17.65 6.41l1.48.34 9.09 2c2 .44 3.75.87 5.25 1.33a26 26 0 0 1 5.74 2.33 5.15 5.15 0 0 1 2.71 4.69c0 3.86-1.95 6.33-6.12 7.79a19 19 0 0 1-2.17.59 36.3 36.3 0 0 1-7.45.67 27.5 27.5 0 0 1-7.48-.91 11.74 11.74 0 0 1-5.88-3.54 9.9 9.9 0 0 1-1.54-2.73 10.52 10.52 0 1 0-19.19 8.57 26.3 26.3 0 0 0 7.45 9.08 36.75 36.75 0 0 0 16.54 7v2.46a10 10 0 0 0 20 0v-2.24c7-1.12 12.75-3.6 17.21-7.41a26.17 26.17 0 0 0 9.6-20.66c-.03-8.09-2.81-14.4-8.31-18.74"
+                                            fill="rgb(8, 59, 67)"
+                                        />
+                                    </svg>
+
+                                    <span className="text-gray-800">Cash</span>
+                                </div>
+
+                                <label className="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" className="sr-only peer" />
+                                    <div
+                                        className="w-10 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:bg-black"></div>
+                                    <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow peer-checked:translate-x-5 transition"></div>
+                                </label>
+
+                            </div>
+
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center">
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        viewBox="0 0 64 64"
+                                        className="h-4 w-4 "
+                                    >
+                                        <rect width="64" height="64" rx="8" fill="#3396cd" />
+                                        <path
+                                            fill="#fff"
+                                            transform="translate(0,5) scale(0.90)"
+                                            d="M47.9 18.8c1.4 2.3 2 4.7 2 7.7 0 9.6-8.2 22.1-14.8 30.9H22.2l-6.1-36.5 13.3-1.3 3.2 26c4.1-7.6 7.7-15 7.7-20 0-2.9-.5-4.9-1.3-6.6z"
+                                        />
+                                    </svg>
+                                    <span className="ml-2 text-gray-800">Venmo</span>
+                                </div>
+                                <label className="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" className="sr-only peer" />
+                                    <div className="w-10 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:bg-black"></div>
+                                    <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow peer-checked:translate-x-5 transition"></div>
+                                </label>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center">
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        viewBox="0 0 48 48"
+                                        className="h-5 w-5 mr-[1.45rem]"
+                                    >
+                                        {/* Purple background */}
+                                        <rect width="48" height="48" rx="8" fill="#a0f" />
+
+                                        {/* White "Z" with cuts */}
+                                        <path
+                                            fill="#fff"
+                                            d="M30 12h-14v3h9l-10 18h15v-3h-10l10-18z"
+                                        />
+                                    </svg>
+
+                                    <span className="text-gray-800">Zelle</span>
+                                </div>
+                                <label className="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" className="sr-only peer" />
+                                    <div className="w-10 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:bg-black"></div>
+                                    <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow peer-checked:translate-x-5 transition"></div>
+                                </label>
+                            </div>
+                            <p className="text-xs text-gray-500">
+                                Customers will be provided payment instructions after they confirm
+                                their order
+                            </p>
+                        </div>
+                    </div>
+                    <div className="border rounded-md mt-4 border-gray-300 p-4">
+                        <h3 className="font-semibold text-gray-800">
+                            Checkout Acknowledgement
+                        </h3>
+                        <div className="flex justify-between">
+                            <p className="text-sm text-gray-500">
+                                Display a message at checkout that customers must acknowledge before
+                                placing their order{" "}
+                                <a href="#" className="text-blue-600">
+                                    Learn more
+                                </a>
+                            </p>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" className="sr-only peer" />
+                                <div className="w-10 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:bg-black"></div>
+                                <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow peer-checked:translate-x-5 transition"></div>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                {/* checkout tab End */}
+
+                <div ref={sectionRefs.loyalty} className="p-6 bg-white  rounded-xl shadow-lg border border-gray-200 w-full">
+                    <h2 className="text-lg font-semibold">Loyalty points</h2>
+                    <div className="border rounded-md mt-4 border-gray-300 p-4">
+                        <h3 className="font-semibold text-gray-800">
+                            Checkout Acknowledgement
+                        </h3>
+                        <div className="flex justify-between">
+                            <p className="text-sm text-gray-500">
+                                Display a message at checkout that customers must acknowledge before
+                                placing their order{" "}
+                                <a href="#" className="text-blue-600">
+                                    Learn more
+                                </a>
+                            </p>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" className="sr-only peer" />
+                                <div className="w-10 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:bg-black"></div>
+                                <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow peer-checked:translate-x-5 transition"></div>
+                            </label>
+                        </div>
+                    </div>
                 </div>
 
-                <div ref={sectionRefs.loyalty} className="p-4 border rounded-md bg-gray-50">
-                    <h3 className="font-medium mb-2">Loyalty Points</h3>
-                    <p className="text-sm text-gray-600">Loyalty points settings here...</p>
+                <div ref={sectionRefs.notifications} className="p-6 bg-white rounded-xl shadow-lg border border-gray-200 w-full">
+                    <h2 className="text-lg font-semibold mb-4">Order Notifications</h2>
+
+                    {/* Confirmation Message */}
+                    <div className="mb-6 w-[450px]">
+                        <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
+                            Confirmation Message
+                            <Info className="ml-1 h-4 w-4 text-gray-400" />
+                        </label>
+                        <textarea
+                            defaultValue={`Asthetic products has received your order!\n\nView your order time, location, and additional details here:\nhttps://www.hotplate.com/confirmation?orderId=XXXXXX&phone=+11111111111`}
+                            maxLength={172}
+                            disabled={!confirmationEnabled}
+                            className={`w-[450px] h-45 p-3 text-sm border rounded-md focus:outline-none focus:ring-2
+                                ${confirmationEnabled
+                                    ? "bg-white border-gray-300 text-gray-700 focus:ring-indigo-500"
+                                    : "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed"
+                                }`}
+                        />
+                        <div className="text-right text-xs text-gray-400">0/172</div>
+                    </div>
+
+                    {/* 24hr Reminder */}
+                    <div className="mb-6 w-[450px]">
+                        <div className="flex items-center justify-between mb-2">
+                            <label className="flex items-center text-sm font-medium text-gray-700">
+                                24hr Reminder
+                                <Info className="ml-1 h-4 w-4 text-gray-400" />
+                            </label>
+                            {/* Switch */}
+                            <label className="relative inline-flex items-center cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    className="sr-only peer"
+                                    checked={reminder24Enabled}
+                                    onChange={() => setReminder24Enabled(!reminder24Enabled)}
+                                />
+                                <div className="w-10 h-5 bg-gray-200 rounded-full peer-checked:bg-black transition-colors"></div>
+                                <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow peer-checked:translate-x-5 transition"></div>
+                            </label>
+                        </div>
+                        <textarea
+                            defaultValue={`Don't forget about your order from Asthetic products tomorrow!\n\nView your order time, location, and additional details here:\nhttps://www.hotplate.com/confirmation?orderId=XXXXXX&phone=+11111111111`}
+                            maxLength={172}
+                            disabled={!reminder24Enabled}
+                            className={`w-full h-45 p-3 text-sm border rounded-md focus:outline-none focus:ring-2
+                                ${reminder24Enabled
+                                    ? "bg-white border-gray-300 text-gray-700 focus:ring-indigo-500"
+                                    : "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed"
+                                }`}
+                        />
+                        <div className="text-right text-xs text-gray-400">0/172</div>
+                    </div>
+
+                    {/* 2hr Reminder */}
+                    <div className="mb-6 w-[450px]">
+                        <div className="flex items-center justify-between mb-2">
+                            <label className="flex items-center text-sm font-medium text-gray-700">
+                                2hr Reminder
+                                <Info className="ml-1 h-4 w-4 text-gray-400" />
+                            </label>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    className="sr-only peer"
+                                    checked={reminder2Enabled}
+                                    onChange={() => setReminder2Enabled(!reminder2Enabled)}
+                                />
+                                <div className="w-10 h-5 bg-gray-200 rounded-full peer-checked:bg-black transition-colors"></div>
+                                <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow peer-checked:translate-x-5 transition"></div>
+                            </label>
+                        </div>
+                        <textarea
+                            defaultValue={`Don't forget about your order from Asthetic products today!\n\nView your order time, location, and additional details here:\nhttps://www.hotplate.com/confirmation?orderId=XXXXXX&phone=+11111111111`}
+                            maxLength={172}
+                            disabled={!reminder2Enabled}
+                            className={`w-full h-45 p-3 text-sm border rounded-md focus:outline-none focus:ring-2
+                                ${reminder2Enabled
+                                    ? "bg-white border-gray-300 text-gray-700 focus:ring-indigo-500"
+                                    : "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed"
+                                }`}
+                        />
+                        <div className="text-right text-xs text-gray-400">0/172</div>
+                    </div>
+
+                    {/* 15min Reminder */}
+                    <div className="mb-6 w-[450px]">
+                        <div className="flex items-center justify-between mb-2">
+                            <label className="flex items-center text-sm font-medium text-gray-700">
+                                15min Reminder
+                                <Info className="ml-1 h-4 w-4 text-gray-400" />
+                            </label>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    className="sr-only peer"
+                                    checked={reminder15Enabled}
+                                    onChange={() => setReminder15Enabled(!reminder15Enabled)}
+                                />
+                                <div className="w-10 h-5 bg-gray-200 rounded-full peer-checked:bg-black transition-colors"></div>
+                                <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow peer-checked:translate-x-5 transition"></div>
+                            </label>
+                        </div>
+                        <textarea
+                            defaultValue={`Your order is almost ready! Don’t forget about it.\n\nCheck details:\nhttps://www.hotplate.com/confirmation?orderId=XXXXXX&phone=+11111111111`}
+                            maxLength={172}
+                            disabled={!reminder15Enabled}
+                            className={`w-full h-45 p-3 text-sm border rounded-md focus:outline-none focus:ring-2
+                                ${reminder15Enabled
+                                    ? "bg-white border-gray-300 text-gray-700 focus:ring-indigo-500"
+                                    : "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed"
+                                }`}
+                        />
+                        <div className="text-right text-xs text-gray-400">0/172</div>
+                    </div>
+
+                    {/* Order Completed */}
+                    <div className="mb-6 w-[450px]">
+                        <div className="flex items-center justify-between mb-2">
+                            <label className="flex items-center text-sm font-medium text-gray-700">
+                                Order Completed
+                                <Info className="ml-1 h-4 w-4 text-gray-400" />
+                            </label>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    className="sr-only peer"
+                                    checked={completedEnabled}
+                                    onChange={() => setCompletedEnabled(!completedEnabled)}
+                                />
+                                <div className="w-10 h-5 bg-gray-200 rounded-full peer-checked:bg-black transition-colors"></div>
+                                <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow peer-checked:translate-x-5 transition"></div>
+                            </label>
+                        </div>
+                        <textarea
+                            defaultValue={`Your order from Asthetic products has been completed!\n\nView confirmation here:\nhttps://www.hotplate.com/confirmation?orderId=XXXXXX&phone=+11111111111`}
+                            maxLength={172}
+                            disabled={!completedEnabled}
+                            className={`w-full h-45 p-3 text-sm border rounded-md focus:outline-none focus:ring-2
+                                ${completedEnabled
+                                    ? "bg-white border-gray-300 text-gray-700 focus:ring-indigo-500"
+                                    : "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed"
+                                }`}
+                        />
+                        <div className="text-right text-xs text-gray-400">0/172</div>
+                    </div>
+
+                    <div className="bg-blue-100 text-sm text-gray-700 border border-blue-100 rounded-md p-3 mb-6 flex items-start gap-2">
+                        <Info className="w-4 h-4 text-blue-500 mt-0.5" />
+                        <p>
+                            All SMS notifications have the customer's confirmation link appended to the end of the
+                            text. Additionally, updates to notifications will be automatically applied to all messages
+                            that have not yet been sent.
+                        </p>
+                    </div>
                 </div>
 
-                <div ref={sectionRefs.notifications} className="p-4 border rounded-md bg-gray-50">
-                    <h3 className="font-medium mb-2">Notifications</h3>
-                    <p className="text-sm text-gray-600">Notification settings here...</p>
-                </div>
-
-                <div ref={sectionRefs.chat} className="p-4 border rounded-md bg-gray-50">
-                    <h3 className="font-medium mb-2">Chat</h3>
-                    <p className="text-sm text-gray-600">Chat settings here...</p>
+                <div ref={sectionRefs.chat} className="p-6 bg-white  rounded-xl shadow-lg border border-gray-200 w-full">
+                    <h2 className="text-lg font-semibold mb-4">Chat</h2>
+                    <div className="flex items-center mt-3">
+                        <label className="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" className="sr-only peer" />
+                            <div className="w-10 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:bg-black"></div>
+                            <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow peer-checked:translate-x-5 transition"></div>
+                        </label>
+                        <span className="text-black ms-3">Allow customers to start a chat with you after they place an order</span>
+                    </div>
                 </div>
             </div>
         </div>
