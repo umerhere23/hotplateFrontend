@@ -8,6 +8,7 @@ import { format } from "date-fns";
 import AdvancedModal from "@/app/modals/advance-modal";
 import PreorderCloseModal from "@/app/modals/preorder-close-modal";
 import MenuItemsModal from "@/app/modals/additem-modal";
+import PickupModalFlow from "@/app/modals/create-pickupmodal";
 
 interface Item {
   id: number;
@@ -28,6 +29,7 @@ export default function Home() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showPremodal, setShowPremodal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [showCreatePickupModal, setShowCreatePickupModal] = useState(false)
   const [selectedCloseOption, setSelectedCloseOption] = useState("last");
   const [timeSlotsOption, setTimeSlotsOption] = useState(
     "anytime"
@@ -313,7 +315,7 @@ export default function Home() {
                   Pickup windows let customers choose when and where they pickup their
                   order. Add at least one to the event using the button below.
                 </div>
-                <button className="w-full bg-black text-white text-sm font-medium rounded-md p-3 hover:bg-gray-800">
+                <button onClick={() => setShowCreatePickupModal(true)} className="w-full bg-black text-white text-sm font-medium rounded-md p-3 hover:bg-gray-800">
                   Add a pickup window
                 </button>
                 <div>
@@ -397,6 +399,7 @@ export default function Home() {
 
       )}
       <AdvancedModal isOpen={showAdvanced} onClose={() => setShowAdvanced(false)} />
+      <PickupModalFlow isOpen={showCreatePickupModal} onClose={() => setShowCreatePickupModal(false)} />
       <PreorderCloseModal
         isOpen={showPremodal}
         onClose={() => setShowPremodal(false)}
