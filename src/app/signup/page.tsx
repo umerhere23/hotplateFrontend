@@ -339,8 +339,8 @@ export default function ChefOnboardingPage() {
         throw new Error(responseData.message || "Registration failed")
       }
 
-      // Show success toast
-      toast.success("Account created! Please verify your phone number.", {
+      // Show success toast and direct user to login
+      toast.success("Account created! Please log in.", {
         style: {
           borderRadius: "10px",
           background: "#22c55e",
@@ -348,17 +348,19 @@ export default function ChefOnboardingPage() {
         },
       })
 
-      // Store user data in localStorage for the verification process
+      // Store user data in localStorage (optional)
       localStorage.setItem("userEmail", formData.email || "")
       localStorage.setItem("userPhone", formData.phoneNumber || "")
-      localStorage.setItem("userId", responseData.data.user_id.toString())
+      if (responseData?.data?.user_id) {
+        localStorage.setItem("userId", responseData.data.user_id.toString())
+      }
 
       // Show redirecting screen
       setRedirecting(true)
 
-      // Redirect to verification page
+      // Redirect to login page
       setTimeout(() => {
-        router.push(`/verify`)
+        router.push(`/login`)
       }, 2000)
     } catch (error) {
       console.error(error)
