@@ -11,6 +11,8 @@ import Image from "next/image"
 import toast from "react-hot-toast"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { useAppDispatch } from "@/store"
+import { setUser } from "@/store/userSlice"
 import { useAuthRedirect } from "@/hooks/use-auth-redirect"
 
 // Login form schema
@@ -23,10 +25,19 @@ type LoginFormValues = z.infer<typeof loginSchema>
 export default function LoginPage() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
+  const dispatch = useAppDispatch()
+  type Step = "email" | "phone" | "code" | "verifying"
+  const [step, setStep] = useState<Step>("email")
+  const [phone, setPhone] = useState("")
+  const [code, setCode] = useState("")
+  const [otpSent, setOtpSent] = useState(false)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   // Redirect if user is already logged in
   useAuthRedirect()
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api"
+  // Prefer NEXT_PUBLIC_API_URL, then BACKEND_URL, then localhost:3000
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || process.env.BACKEND_URL || "http://localhost:3000"
+  const SITE_NAME = process.env.NEXT_PUBLIC_SITE_NAME ?? "Hotplate"
 
   
   const {
@@ -59,12 +70,20 @@ export default function LoginPage() {
         throw new Error(responseData.message || "Email not found")
       }
 
-      // Store user data for verification
+      // Store email and any user id safely
       localStorage.setItem("userEmail", data.email)
-      localStorage.setItem("userPhone", responseData.data.phone_number)
-      localStorage.setItem("userId", responseData.data.user_id.toString())
+      const userIdFromApi = responseData?.data?.user_id
+      if (userIdFromApi !== undefined && userIdFromApi !== null) {
+        localStorage.setItem("userId", String(userIdFromApi))
+      }
 
-      toast.success("Email found! Redirecting to verification...", {
+      // Prefill phone if backend returns one
+      const phoneFromApi = responseData?.data?.phone_number ?? responseData?.data?.phone ?? ""
+      if (typeof phoneFromApi === "string" && phoneFromApi) {
+        setPhone(phoneFromApi)
+      }
+
+      toast.success("Email found! Please verify your phone.", {
         style: {
           borderRadius: "10px",
           background: "#22c55e",
@@ -72,10 +91,8 @@ export default function LoginPage() {
         },
       })
 
-      // Redirect to verification page
-      setTimeout(() => {
-        router.push(`/verify`)
-      }, 2000)
+      // Move to phone step
+      setStep("phone")
     } catch (error) {
       console.error(error)
       toast.error(error instanceof Error ? error.message : "Email not found. Please check your email or sign up.", {
@@ -90,6 +107,80 @@ export default function LoginPage() {
     }
   }
 
+  const sendMockCode = () => {
+    setErrorMsg(null)
+    if (!phone || phone.trim().length < 6) {
+      setErrorMsg("Enter a valid phone number")
+      return
+    }
+    // Persist chosen phone
+    localStorage.setItem("userPhone", phone)
+    setOtpSent(true)
+    setStep("code")
+    toast.success("Code sent! Use 000000 to continue.")
+  }
+
+  const verifyMockCode = async () => {
+    setErrorMsg(null)
+    if (code !== "000000") {
+      setErrorMsg("Invalid code. Use 000000")
+      return
+    }
+    setIsLoading(true)
+    setStep("verifying")
+    try {
+      // 1) Send email and phone to backend (e.g., login)
+      const email = localStorage.getItem("userEmail") || ""
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || process.env.BACKEND_URL || "http://localhost:3000"
+      const phoneToSend = (localStorage.getItem("userPhone") || phone || "").toString()
+
+      let authToken: string | undefined
+      try {
+        const loginRes = await fetch(`${API_URL}/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({ email, phone: phoneToSend, phoneNumber: phoneToSend }),
+        })
+        if (loginRes.ok) {
+          const loginData = await loginRes.json().catch(() => ({}))
+          authToken = loginData?.token || loginData?.access_token || loginData?.data?.token
+          if (authToken) localStorage.setItem("authToken", authToken)
+        }
+      } catch {}
+
+      // 2) Fetch user info from backend before navigating
+      const headers: Record<string, string> = { "Content-Type": "application/json", Accept: "application/json" }
+      if (authToken) headers["Authorization"] = `Bearer ${authToken}`
+
+      const res = await fetch(`${API_URL}/me`, {
+        headers,
+        method: "GET",
+      })
+      const data = await res.json().catch(() => ({}))
+      // Shape a minimal user object
+      const user = data?.data || data?.user || {
+        id: data?.id || "",
+        email,
+        phone: localStorage.getItem("userPhone") || "",
+        ...data,
+      }
+      dispatch(setUser(user))
+      toast.success("Signed in!")
+      router.push("/dashboard")
+    } catch (e) {
+      // If fetch fails, still proceed but with minimal user
+      const fallbackUser = {
+        id: localStorage.getItem("userId") || "",
+        email: localStorage.getItem("userEmail") || "",
+        phone: localStorage.getItem("userPhone") || "",
+      }
+      dispatch(setUser(fallbackUser))
+      router.push("/dashboard")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   return (
     <main className="flex min-h-screen bg-[#fff5f0]">
       <div className="flex flex-col md:flex-row items-center justify-center w-full max-w-7xl mx-auto p-4">
@@ -97,41 +188,118 @@ export default function LoginPage() {
           <div className="bg-white rounded-lg shadow-sm p-8 md:p-10">
             <div className="text-center mb-8">
               <h1 className="text-3xl font-medium mb-2">Welcome back!</h1>
-              <p className="text-gray-500">Sign in to your {process.env.NEXT_PUBLIC_SITE_NAME} account</p>
+              <p className="text-gray-500">Sign in to your {SITE_NAME} account</p>
             </div>
 
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email" className="text-sm font-medium">
-                  Email
-                </Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="chef@example.com"
-                  className="border-[#e1e1e1] h-12"
-                  {...register("email")}
-                />
-                {errors.email && <p className="text-red-500 text-sm">{errors.email.message}</p>}
-              </div>
+            {step === "email" && (
+              <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="text-sm font-medium">
+                    Email
+                  </Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="chef@example.com"
+                    className="border-[#e1e1e1] h-12"
+                    {...register("email")}
+                  />
+                  {errors.email && <p className="text-red-500 text-sm">{errors.email.message}</p>}
+                </div>
 
-              <div className="pt-4">
-                <Button
-                  type="submit"
-                  disabled={isLoading}
-                  className={`
-                    w-full bg-[#ec711e] hover:bg-[#d86518] text-white h-12 rounded-full flex items-center justify-center
-                    ${isLoading ? "cursor-not-allowed opacity-70" : "cursor-pointer"}
-                  `}
-                >
-                  {isLoading ? (
-                    <div className="animate-spin rounded-full h-6 w-6 border-4 border-white border-t-transparent"></div>
-                  ) : (
-                    "Continue"
-                  )}
-                </Button>
+                <div className="pt-4">
+                  <Button
+                    type="submit"
+                    disabled={isLoading}
+                    className={`
+                      w-full bg-[#ec711e] hover:bg-[#d86518] text-white h-12 rounded-full flex items-center justify-center
+                      ${isLoading ? "cursor-not-allowed opacity-70" : "cursor-pointer"}
+                    `}
+                  >
+                    {isLoading ? (
+                      <div className="animate-spin rounded-full h-6 w-6 border-4 border-white border-t-transparent"></div>
+                    ) : (
+                      "Continue"
+                    )}
+                  </Button>
+                </div>
+              </form>
+            )}
+
+            {step === "phone" && (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="phone" className="text-sm font-medium">
+                    Phone number
+                  </Label>
+                  <Input
+                    id="phone"
+                    type="tel"
+                    placeholder="e.g. +1 555 123 4567"
+                    className="border-[#e1e1e1] h-12"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                  />
+                  {errorMsg && <p className="text-red-500 text-sm">{errorMsg}</p>}
+                </div>
+                <div className="pt-2">
+                  <Button
+                    type="button"
+                    onClick={sendMockCode}
+                    disabled={isLoading}
+                    className={`
+                      w-full bg-[#ec711e] hover:bg-[#d86518] text-white h-12 rounded-full flex items-center justify-center
+                      ${isLoading ? "cursor-not-allowed opacity-70" : "cursor-pointer"}
+                    `}
+                  >
+                    {isLoading ? (
+                      <div className="animate-spin rounded-full h-6 w-6 border-4 border-white border-t-transparent"></div>
+                    ) : (
+                      "Send code"
+                    )}
+                  </Button>
+                </div>
               </div>
-            </form>
+            )}
+
+            {step === "code" && (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="code" className="text-sm font-medium">
+                    Enter code
+                  </Label>
+                  <Input
+                    id="code"
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    placeholder="000000"
+                    className="border-[#e1e1e1] h-12 text-center tracking-widest"
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
+                  />
+                  <p className="text-xs text-gray-500">Use 000000 to continue</p>
+                  {errorMsg && <p className="text-red-500 text-sm">{errorMsg}</p>}
+                </div>
+                <div className="pt-2">
+                  <Button
+                    type="button"
+                    onClick={verifyMockCode}
+                    disabled={isLoading || code.length !== 6}
+                    className={`
+                      w-full bg-[#ec711e] hover:bg-[#d86518] text-white h-12 rounded-full flex items-center justify-center
+                      ${isLoading || code.length !== 6 ? "cursor-not-allowed opacity-70" : "cursor-pointer"}
+                    `}
+                  >
+                    {isLoading ? (
+                      <div className="animate-spin rounded-full h-6 w-6 border-4 border-white border-t-transparent"></div>
+                    ) : (
+                      "Verify"
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
 
             <div className="mt-6 text-center">
               <p className="text-gray-600">
