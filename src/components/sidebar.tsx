@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import Link from "next/link"
 import {
   BarChart3,
@@ -40,6 +40,31 @@ const navItems: SidebarItem[] = [
 
 export function Sidebar() {
   const pathname = usePathname()
+  const router = useRouter()
+  // Lazy import hooks to avoid circulars
+  const clearReduxUser = () => {
+    try {
+      // Dynamically import to avoid SSR issues
+  const userMod = require("@/store/userSlice")
+  const authMod = require("@/store/authSlice")
+  const storeMod = require("@/store")
+  const dispatch = storeMod.store.dispatch
+  dispatch(userMod.clearUser())
+  dispatch(authMod.clearAuth())
+    } catch {}
+  }
+
+  const handleLogout = () => {
+    try {
+      // Clear local storage auth and user artifacts
+      localStorage.removeItem("authToken")
+      localStorage.removeItem("userId")
+      localStorage.removeItem("userEmail")
+      localStorage.removeItem("userPhone")
+    } catch {}
+  clearReduxUser()
+    router.push("/login")
+  }
 
   return (
     <div className="w-[160px] border-r border-gray-200 flex flex-col h-screen sticky top-0">
@@ -62,10 +87,22 @@ export function Sidebar() {
         ))}
       </nav>
 
-      {/* Collapse at bottom */}
-      <div className="p-2 border-t border-gray-200">
-        <button className="flex items-center gap-1 px-2 py-2 rounded-md hover:bg-gray-100 text-gray-600 text-xs w-full justify-center">
+      {/* Bottom actions */}
+      <div className="p-2 border-t border-gray-200 space-y-2">
+        <button
+          className="flex items-center gap-1 px-2 py-2 rounded-md hover:bg-gray-100 text-gray-600 text-xs w-full justify-center"
+          aria-label="Collapse sidebar"
+          title="Collapse"
+        >
           <ChevronLeft size={14} /> Collapse
+        </button>
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-1 px-2 py-2 rounded-md hover:bg-red-50 text-red-600 text-xs w-full justify-center border border-red-200"
+          aria-label="Log out"
+          title="Log out"
+        >
+          Log out
         </button>
       </div>
     </div>

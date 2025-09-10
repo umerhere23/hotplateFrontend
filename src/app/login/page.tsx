@@ -13,6 +13,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useAppDispatch } from "@/store"
 import { setUser } from "@/store/userSlice"
+import { setAuth } from "@/store/authSlice"
 import { useAuthRedirect } from "@/hooks/use-auth-redirect"
 
 // Login form schema
@@ -129,28 +130,43 @@ export default function LoginPage() {
     setIsLoading(true)
     setStep("verifying")
     try {
-      // 1) Send email and phone to backend (e.g., login)
+    // 1) Send email and OTP to backend (no phone)
       const email = localStorage.getItem("userEmail") || ""
       const API_URL = process.env.NEXT_PUBLIC_API_URL || process.env.BACKEND_URL || "http://localhost:3000"
-      const phoneToSend = (localStorage.getItem("userPhone") || phone || "").toString()
 
       let authToken: string | undefined
+      let tokenType: string | undefined
       try {
         const loginRes = await fetch(`${API_URL}/login`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Accept: "application/json" },
-          body: JSON.stringify({ email, phone: phoneToSend, phoneNumber: phoneToSend }),
+      body: JSON.stringify({ email, otp: code }),
         })
         if (loginRes.ok) {
           const loginData = await loginRes.json().catch(() => ({}))
-          authToken = loginData?.token || loginData?.access_token || loginData?.data?.token
-          if (authToken) localStorage.setItem("authToken", authToken)
+          const dataNode = loginData?.data || loginData
+          authToken = dataNode?.token || dataNode?.access_token || loginData?.access_token
+          tokenType = dataNode?.token_type || loginData?.token_type || 'Bearer'
+          if (authToken) {
+            localStorage.setItem("authToken", authToken)
+            localStorage.setItem("tokenType", tokenType!)
+            dispatch(setAuth({ token: authToken, tokenType }))
+          }
+          // If user object already in login response, store it immediately
+          const loginUser = dataNode?.user
+          if (loginUser) {
+            dispatch(setUser(loginUser))
+            // Also persist key fields
+            if (loginUser.email) localStorage.setItem("userEmail", loginUser.email)
+            if (loginUser.phoneNumber) localStorage.setItem("userPhone", loginUser.phoneNumber)
+            if (loginUser.id) localStorage.setItem("userId", String(loginUser.id))
+          }
         }
       } catch {}
 
       // 2) Fetch user info from backend before navigating
-      const headers: Record<string, string> = { "Content-Type": "application/json", Accept: "application/json" }
-      if (authToken) headers["Authorization"] = `Bearer ${authToken}`
+  const headers: Record<string, string> = { "Content-Type": "application/json", Accept: "application/json" }
+  if (authToken) headers["Authorization"] = `${tokenType || 'Bearer'} ${authToken}`
 
       const res = await fetch(`${API_URL}/me`, {
         headers,
@@ -158,7 +174,7 @@ export default function LoginPage() {
       })
       const data = await res.json().catch(() => ({}))
       // Shape a minimal user object
-      const user = data?.data || data?.user || {
+  const user = data?.data?.user || data?.user || data?.data || {
         id: data?.id || "",
         email,
         phone: localStorage.getItem("userPhone") || "",
