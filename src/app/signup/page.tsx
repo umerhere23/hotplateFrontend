@@ -134,8 +134,8 @@ type FormValues = z.infer<typeof step1Schema> &
   z.infer<typeof step4Schema> &
   z.infer<typeof step5Schema>
 
-// API URL
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api"
+// API URL (prefers NEXT_PUBLIC_API_URL, then BACKEND_URL, then localhost:3000)
+const API_URL = process.env.NEXT_PUBLIC_API_URL || process.env.BACKEND_URL || "http://localhost:3000"
 
 // Debounce validation functions
 const debounce = (func: (value: string) => void, delay: number) => {
@@ -165,6 +165,7 @@ export default function ChefOnboardingPage() {
   const [emailValidationError, setEmailValidationError] = useState<string | null>(null)
   const [phoneValidationError, setPhoneValidationError] = useState<string | null>(null)
   const [instagramValidationError, setInstagramValidationError] = useState<string | null>(null)
+  const [instagramValidated, setInstagramValidated] = useState(false)
 
   // Loading states for validation checks
   const [isValidatingEmail, setIsValidatingEmail] = useState(false)
@@ -178,6 +179,8 @@ export default function ChefOnboardingPage() {
   // Progress calculation
   const totalSteps = 5
   const progress = (currentStep / totalSteps) * 100
+  // SITE_NAME with safe fallback to avoid calling toLocaleLowerCase on undefined
+  const SITE_NAME = (process.env.NEXT_PUBLIC_SITE_NAME ?? "hotplate").toLocaleLowerCase()
 
   useEffect(() => {
     setMounted(true)
@@ -253,8 +256,9 @@ export default function ChefOnboardingPage() {
   // Check if step 3 form is valid
   const isStep3Valid = step3Form.formState.isValid
 
-  // Check if step 4 form is valid and has no validation errors
-  const isStep4Valid = step4Form.formState.isValid && !instagramValidationError && !isValidatingInstagram
+  // Check if step 4 form is valid and Instagram validation explicitly succeeded
+  // instagramValidated must be true (set after successful server check or NA)
+  const isStep4Valid = step4Form.formState.isValid && instagramValidated && !isValidatingInstagram
 
   // Check if step 5 form is valid and has no validation errors
   const isStep5Valid =
@@ -511,9 +515,17 @@ export default function ChefOnboardingPage() {
 
   // Function to validate Instagram handle
   const validateInstagramHandle = async (instagramHandle: string) => {
-    if (!instagramHandle || instagramHandle === "https://instagram.com/NA") return
+    if (!instagramHandle) return
+
+    // Treat explicit NA as valid (no Instagram)
+    if (instagramHandle === "https://instagram.com/NA") {
+      setInstagramValidationError(null)
+      setInstagramValidated(true)
+      return
+    }
 
     setIsValidatingInstagram(true)
+    setInstagramValidated(false)
     try {
       const response = await fetch(`${API_URL}/validate/instagramHandle`, {
         method: "POST",
@@ -527,12 +539,15 @@ export default function ChefOnboardingPage() {
 
       if (!data.success) {
         setInstagramValidationError(data.message)
+        setInstagramValidated(false)
       } else {
         setInstagramValidationError(null)
+        setInstagramValidated(true)
       }
     } catch (error) {
       console.error("Error validating Instagram handle:", error)
       setInstagramValidationError("Error checking Instagram handle availability")
+      setInstagramValidated(false)
     } finally {
       setIsValidatingInstagram(false)
     }
@@ -1088,8 +1103,7 @@ export default function ChefOnboardingPage() {
                       )}
                     </div>
                     <p className="text-xs text-gray-500">
-                      Your storefront link will be www.{process.env.NEXT_PUBLIC_SITE_NAME.toLocaleLowerCase()}.com/
-                      {step5Form.watch("username") || "username"}
+                      Your storefront link will be www.{SITE_NAME}.com/{step5Form.watch("username") || "username"}
                     </p>
                     {step5Form.formState.errors.username && (
                       <p className="text-red-500 text-sm mt-1">{step5Form.formState.errors.username.message}</p>
