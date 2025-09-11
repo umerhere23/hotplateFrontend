@@ -40,7 +40,7 @@ export default function SignupForm() {
     try {
   // API call to backend (uses NEXT_PUBLIC_API_URL)
   const API_URL = process.env.NEXT_PUBLIC_API_URL || process.env.BACKEND_URL || "http://localhost:3000"
-  const response = await fetch(`${API_URL}/register`, {
+  const response = await fetch(`${API_URL}/auth/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

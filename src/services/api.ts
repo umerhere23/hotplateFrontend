@@ -1,15 +1,8 @@
 // API service for fetching data from the backend
 import { mockEvents } from "@/app/dashboard/mock-data"
-import { store } from "@/store"
+import api from "@/lib/api-client"
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api"
-
-function getAuth() {
-  const state = store.getState?.()
-  const token = state?.auth?.token || (typeof window !== "undefined" ? localStorage.getItem("auth_token") : null)
-  const tokenType = state?.auth?.tokenType || "Bearer"
-  return { token, tokenType }
-}
+// Endpoints handled by generic client in src/lib/api-client
 
 export type Event = {
   id: string | number
@@ -55,31 +48,10 @@ export async function getEvents(): Promise<Event[]> {
     //   return mockEvents
     // }
 
-  const { token, tokenType } = getAuth()
-
-    if (!token) {
-      console.warn("No authentication token found, using mock data")
-      return mockEvents
-    }
-
-    console.log("Fetching events from API:", `${API_URL}/events`)
-  const response = await fetch(`${API_URL}/events`, {
-      headers: {
-    Authorization: `${tokenType} ${token}`,
-        "Content-Type": "application/json",
-      },
-    })
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch events: ${response.status} ${response.statusText}`)
-    }
-
-    const data = await response.json()
-    console.log("API response:", data)
-
-    if (data.success && Array.isArray(data.data)) {
+    const { ok, data } = await api.get<any>("/events", { pointName: "getEvents" })
+    if (ok && Array.isArray((data as any)?.data)) {
       // Map the API response to match our Event type
-      return data.data.map((event: any) => ({
+      return (data as any).data.map((event: any) => ({
         ...event,
         // Convert id to string if needed for consistency
         id: event.id.toString(),
@@ -133,34 +105,13 @@ export async function createEvent(payload: Partial<Event> | FormData): Promise<{
   message?: string
 }> {
   try {
-  const { token, tokenType } = getAuth()
-    if (!token) {
-      return { success: false, message: "Not authenticated" }
-    }
-
     const isForm = typeof FormData !== "undefined" && payload instanceof FormData
-
-    const response = await fetch(`${API_URL}/events`, {
-      method: "POST",
-      headers: isForm
-        ? { Authorization: `${tokenType} ${token}` }
-        : { Authorization: `${tokenType} ${token}`, "Content-Type": "application/json" },
-      body: isForm ? (payload as FormData) : JSON.stringify(payload),
+    const { ok, data, message } = await api.post("/events", {
+      formData: isForm ? (payload as FormData) : undefined,
+      data: !isForm ? payload : undefined,
+      pointName: "createEvent",
     })
-
-    const data = await response.json().catch(() => ({}))
-
-    if (!response.ok) {
-      return {
-        success: false,
-        message: data?.message || `Failed to create event (${response.status})`,
-      }
-    }
-
-    // Some backends return { success, data }, others just the created row
-    if (data?.success !== undefined) {
-      return { success: !!data.success, data: data.data, message: data?.message }
-    }
+    if (!ok) return { success: false, message }
     return { success: true, data }
   } catch (err: any) {
     console.error("createEvent error", err)
@@ -173,20 +124,11 @@ export async function updateEvent(
   payload: Partial<Event>
 ): Promise<{ success: boolean; data?: any; message?: string }> {
   try {
-  const { token, tokenType } = getAuth()
-    if (!token) return { success: false, message: "Not authenticated" }
-
-    const res = await fetch(`${API_URL}/events/${eventId}`, {
-      method: "PATCH",
-      headers: {
-    Authorization: `${tokenType} ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
+    const { ok, data, message } = await api.patch(`/events/${eventId}`, {
+      data: payload,
+      pointName: "updateEvent",
     })
-    const data = await res.json().catch(() => ({}))
-    if (!res.ok) return { success: false, message: data?.message || "Failed to update event" }
-    if (data?.success !== undefined) return { success: !!data.success, data: data.data, message: data?.message }
+    if (!ok) return { success: false, message }
     return { success: true, data }
   } catch (err: any) {
     console.error("updateEvent error", err)
@@ -211,20 +153,11 @@ export async function createPickupWindow(payload: PickupWindow): Promise<{
   message?: string
 }> {
   try {
-  const { token, tokenType } = getAuth()
-    if (!token) return { success: false, message: "Not authenticated" }
-
-    const res = await fetch(`${API_URL}/pickup-windows`, {
-      method: "POST",
-      headers: {
-    Authorization: `${tokenType} ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
+    const { ok, data, message } = await api.post(`/pickup-windows`, {
+      data: payload,
+      pointName: "createPickupWindow",
     })
-    const data = await res.json().catch(() => ({}))
-    if (!res.ok) return { success: false, message: data?.message || "Failed to create pickup window" }
-    if (data?.success !== undefined) return { success: !!data.success, data: data.data, message: data?.message }
+    if (!ok) return { success: false, message }
     return { success: true, data }
   } catch (err: any) {
     console.error("createPickupWindow error", err)
@@ -247,20 +180,11 @@ export async function createMenuItem(payload: MenuItemPayload): Promise<{
   message?: string
 }> {
   try {
-  const { token, tokenType } = getAuth()
-    if (!token) return { success: false, message: "Not authenticated" }
-
-    const res = await fetch(`${API_URL}/menu-items`, {
-      method: "POST",
-      headers: {
-    Authorization: `${tokenType} ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
+    const { ok, data, message } = await api.post(`/menu-items`, {
+      data: payload,
+      pointName: "createMenuItem",
     })
-    const data = await res.json().catch(() => ({}))
-    if (!res.ok) return { success: false, message: data?.message || "Failed to create menu item" }
-    if (data?.success !== undefined) return { success: !!data.success, data: data.data, message: data?.message }
+    if (!ok) return { success: false, message }
     return { success: true, data }
   } catch (err: any) {
     console.error("createMenuItem error", err)

@@ -54,7 +54,7 @@ export default function LoginPage() {
 
     try {
       // Check if the email exists in the system
-      const response = await fetch(`${API_URL}/check-email`, {
+      const response = await fetch(`${API_URL}/auth/check-email`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -137,7 +137,7 @@ export default function LoginPage() {
       let authToken: string | undefined
       let tokenType: string | undefined
       try {
-        const loginRes = await fetch(`${API_URL}/login`, {
+        const loginRes = await fetch(`${API_URL}/auth/login`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({ email, otp: code }),
