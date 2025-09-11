@@ -142,7 +142,7 @@ export default function LoginPage() {
           headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({ email, otp: code }),
         })
-        if (loginRes.ok) {
+    if (loginRes.ok) {
           const loginData = await loginRes.json().catch(() => ({}))
           const dataNode = loginData?.data || loginData
           authToken = dataNode?.token || dataNode?.access_token || loginData?.access_token
@@ -160,6 +160,9 @@ export default function LoginPage() {
             if (loginUser.email) localStorage.setItem("userEmail", loginUser.email)
             if (loginUser.phoneNumber) localStorage.setItem("userPhone", loginUser.phoneNumber)
             if (loginUser.id) localStorage.setItem("userId", String(loginUser.id))
+      toast.success("Signed in!")
+      router.push("/dashboard")
+      return
           }
         }
       } catch {}
@@ -172,7 +175,7 @@ export default function LoginPage() {
         headers,
         method: "GET",
       })
-      const data = await res.json().catch(() => ({}))
+  const data = await res.json().catch(() => ({}))
       // Shape a minimal user object
   const user = data?.data?.user || data?.user || data?.data || {
         id: data?.id || "",

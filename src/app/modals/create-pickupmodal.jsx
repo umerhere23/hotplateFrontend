@@ -3,9 +3,13 @@ import { useState } from "react";
 import { DayPicker } from "react-day-picker";
 import "react-day-picker/dist/style.css";
 
-export default function PickupModalFlow({ isOpen, onClose }) {
+export default function PickupModalFlow({ isOpen, onClose, eventId, onSavePickup }) {
   const [step, setStep] = useState("pickup"); // pickup | select-location | create-location
   const [pickupDate, setPickupDate] = useState(null);
+  const [startTime, setStartTime] = useState("12:00");
+  const [endTime, setEndTime] = useState("12:00");
+  const [locationName, setLocationName] = useState("");
+  const [address, setAddress] = useState("");
   const [showDatePicker, setShowDatePicker] = useState(false);
 
   if (!isOpen) return null;
@@ -74,7 +78,8 @@ export default function PickupModalFlow({ isOpen, onClose }) {
                 </label>
                 <input
                   type="time"
-                  defaultValue="12:00"
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
                   className="w-full border rounded-md px-3 py-2 text-sm"
                 />
               </div>
@@ -84,7 +89,8 @@ export default function PickupModalFlow({ isOpen, onClose }) {
                 </label>
                 <input
                   type="time"
-                  defaultValue="12:00"
+                  value={endTime}
+                  onChange={(e) => setEndTime(e.target.value)}
                   className="w-full border rounded-md px-3 py-2 text-sm"
                 />
               </div>
@@ -118,7 +124,21 @@ export default function PickupModalFlow({ isOpen, onClose }) {
               >
                 Discard
               </button>
-              <button className="bg-red-100 text-red-400 font-medium px-6 py-2 rounded-md text-sm cursor-not-allowed">
+              <button
+                onClick={async () => {
+                  if (!pickupDate) return;
+                  if (!onSavePickup) return;
+                  await onSavePickup({
+                    date: pickupDate,
+                    start: startTime,
+                    end: endTime,
+                    location_name: locationName || undefined,
+                    address: address || undefined,
+                  });
+                  closeModal();
+                }}
+                className="bg-black text-white font-medium px-6 py-2 rounded-md text-sm"
+              >
                 Save
               </button>
             </div>
@@ -176,6 +196,8 @@ export default function PickupModalFlow({ isOpen, onClose }) {
                 <input
                   type="text"
                   placeholder="e.g. Main Street Store"
+                  value={locationName}
+                  onChange={(e) => setLocationName(e.target.value)}
                   className="w-full border rounded-md px-3 py-2 text-sm"
                 />
               </div>
@@ -186,6 +208,8 @@ export default function PickupModalFlow({ isOpen, onClose }) {
                 <input
                   type="text"
                   placeholder="123 Main St"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
                   className="w-full border rounded-md px-3 py-2 text-sm"
                 />
               </div>

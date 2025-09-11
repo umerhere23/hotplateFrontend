@@ -9,6 +9,8 @@ import AdvancedModal from "@/app/modals/advance-modal";
 import PreorderCloseModal from "@/app/modals/preorder-close-modal";
 import MenuItemsModal from "@/app/modals/additem-modal";
 import PickupModalFlow from "@/app/modals/create-pickupmodal";
+import toast from "react-hot-toast";
+import { createEvent, createMenuItem, createPickupWindow, updateEvent } from "@/services/api";
 
 interface Item {
   id: number;
@@ -34,6 +36,18 @@ export default function Home() {
   const [timeSlotsOption, setTimeSlotsOption] = useState(
     "anytime"
   );
+  // New: controlled form state
+  const [eventName, setEventName] = useState<string>("New Event");
+  const [eventDescription, setEventDescription] = useState<string>("");
+  const [walkUpOrdering, setWalkUpOrdering] = useState<boolean>(false);
+  const [hideOpenTime, setHideOpenTime] = useState<boolean>(false);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [createdEventId, setCreatedEventId] = useState<string | number | null>(null);
+  const [hideFromStorefront, setHideFromStorefront] = useState<boolean>(false);
+  const [checkoutTimeLimit, setCheckoutTimeLimit] = useState<number>(5);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [errors, setErrors] = useState<{ name?: string; desc?: string; date?: string; time?: string; image?: string }>({});
 
   const times = [
     "09:00 AM",
@@ -66,7 +80,11 @@ export default function Home() {
 
           {/* Info Box */}
           <div className="border rounded-md bg-white p-4 flex items-center gap-3 mb-6 shadow-sm">
-            <button className="w-10 h-10 flex items-center justify-center border rounded-full hover:bg-gray-100">
+            <button
+              className="w-10 h-10 flex items-center justify-center border rounded-full hover:bg-gray-100"
+              aria-label="Play walkthrough video"
+              title="Play walkthrough video"
+            >
               <Play size={20} />
             </button>
             <div>
@@ -176,16 +194,53 @@ export default function Home() {
                     <label className="block text-sm mb-1">Event Name</label>
                     <input
                       type="text"
-                      defaultValue="New Event"
+                      value={eventName}
+                      onChange={(e) => setEventName(e.target.value)}
                       className="w-full bg-gray-200 rounded p-2"
+                      aria-label="Event Name"
                     />
+                    {errors.name && <p className="text-xs text-red-600 mt-1">{errors.name}</p>}
                   </div>
 
                   <div className="mb-4">
                     <label className=" text-sm mb-1">Event Image (optional)</label>
-                    <div className="bg-gray-200 w-[150px] rounded p-3 text-center cursor-pointer hover:bg-gray-50">
-                      <span className="text-sm text-gray-600">Upload photo</span>
+                    <div className="flex items-center gap-3">
+                      <label htmlFor="event-image" className="bg-gray-200 w-[150px] rounded p-3 text-center cursor-pointer hover:bg-gray-50">
+                        <span className="text-sm text-gray-600">Upload photo</span>
+                      </label>
+                      <input
+                        id="event-image"
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0] || null;
+                          setImageFile(file);
+                          setErrors((prev) => ({ ...prev, image: undefined }));
+                          if (file) {
+                            if (!file.type.startsWith("image/")) {
+                              setErrors((prev) => ({ ...prev, image: "Only image files are allowed" }));
+                              setImagePreview(null);
+                              return;
+                            }
+                            if (file.size > 5 * 1024 * 1024) {
+                              setErrors((prev) => ({ ...prev, image: "Max 5MB image" }));
+                              setImagePreview(null);
+                              return;
+                            }
+                            const reader = new FileReader();
+                            reader.onloadend = () => setImagePreview(reader.result as string);
+                            reader.readAsDataURL(file);
+                          } else {
+                            setImagePreview(null);
+                          }
+                        }}
+                      />
+                      {imagePreview && (
+                        <img src={imagePreview} alt="preview" className="w-16 h-16 object-cover rounded" />
+                      )}
                     </div>
+                    {errors.image && <p className="text-xs text-red-600 mt-1">{errors.image}</p>}
                   </div>
 
                   <div className="mb-4">
@@ -193,9 +248,13 @@ export default function Home() {
                     <textarea
                       placeholder="Describe your event"
                       maxLength={500}
+                      value={eventDescription}
+                      onChange={(e) => setEventDescription(e.target.value)}
                       className="w-full border rounded p-2 h-24"
+                      aria-label="Event Description"
                     ></textarea>
-                    <p className="text-xs text-gray-400 text-right">0/500</p>
+                    <p className="text-xs text-gray-400 text-right">{eventDescription.length}/500</p>
+                    {errors.desc && <p className="text-xs text-red-600 mt-1">{errors.desc}</p>}
                   </div>
                   <div>
                     <label className="block text-sm">Pre-Order open</label>
@@ -257,6 +316,8 @@ export default function Home() {
                       </div>
                     </div>
                     <label className="block text-sm mb-1">Setting times in GMT+5</label>
+                    {errors.date && <p className="text-xs text-red-600">{errors.date}</p>}
+                    {errors.time && <p className="text-xs text-red-600">{errors.time}</p>}
                   </div>
                   <div>
                     <label className="block mt-5 text-sm mb-1 font-medium">Pre-orders Close</label>
@@ -275,6 +336,9 @@ export default function Home() {
                     <Switch.Root
                       className="w-11 h-6 bg-gray-200 rounded-full relative data-[state=checked]:bg-black transition-colors"
                       id="walkup-switch"
+                      checked={walkUpOrdering}
+                      onCheckedChange={setWalkUpOrdering}
+                      aria-label="Enable walk-up ordering"
                     >
                       <Switch.Thumb className="block w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-300 translate-x-0 data-[state=checked]:translate-x-5" />
                     </Switch.Root>
@@ -285,6 +349,9 @@ export default function Home() {
                     <Switch.Root
                       className="w-11 h-6 bg-gray-200 rounded-full relative data-[state=checked]:bg-black transition-colors"
                       id="hide-time-switch"
+                      checked={hideOpenTime}
+                      onCheckedChange={setHideOpenTime}
+                      aria-label="Hide open time"
                     >
                       <Switch.Thumb className="block w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-300 translate-x-0 data-[state=checked]:translate-x-5" />
                     </Switch.Root>
@@ -298,8 +365,57 @@ export default function Home() {
                   >
                     Advanced options
                   </button>
-                  <button className="bg-gray-200 text-gray-400 text-sm font-medium px-4 py-2 rounded-md cursor-not-allowed">
-                    Save &amp; Continue
+                  <button
+                    onClick={async () => {
+                      const newErrors: typeof errors = {};
+                      if (!eventName.trim()) newErrors.name = "Event name is required";
+                      if (eventName.trim().length > 150) newErrors.name = "Max 150 characters";
+                      if (eventDescription.length > 500) newErrors.desc = "Max 500 characters";
+                      if (!selectedDate) newErrors.date = "Please select a pre-order open date";
+                      if (selectedDate) {
+                        const today = new Date();
+                        today.setHours(0,0,0,0);
+                        const picked = new Date(selectedDate);
+                        picked.setHours(0,0,0,0);
+                        if (picked < today) newErrors.date = "Date cannot be in the past";
+                      }
+                      if (!selectedTime) newErrors.time = "Please select a pre-order open time";
+                      setErrors(newErrors);
+                      if (Object.keys(newErrors).length) return;
+                      try {
+                        setIsSaving(true);
+                        const form = new FormData();
+                        form.append("title", eventName.trim());
+                        form.append("description", eventDescription.trim());
+                        form.append("pre_order_date", format(selectedDate!, "yyyy-MM-dd"));
+                        form.append("pre_order_time", selectedTime);
+                        form.append("order_close_data", JSON.stringify({ option: selectedCloseOption }));
+                        form.append("walk_up_ordering", String(walkUpOrdering ? 1 : 0));
+                        form.append("walk_up_ordering_option", "pickup-windows");
+                        form.append("hide_open_time", String(hideOpenTime ? 1 : 0));
+                        form.append("disable_drop_notifications", "0");
+                        form.append("hide_from_storefront", "0");
+                        form.append("status", "draft");
+                        if (imageFile) form.append("image", imageFile);
+                        const res = await createEvent(form);
+                        if (!res.success) {
+                          toast.error(res.message || "Failed to create event");
+                          return;
+                        }
+                        const newId = res.data?.id ?? res.data?.data?.id ?? null;
+                        if (newId !== null) setCreatedEventId(newId);
+                        toast.success("Event created");
+                        setActiveTab("pickup");
+                      } catch (e: any) {
+                        toast.error(e?.message || "Something went wrong");
+                      } finally {
+                        setIsSaving(false);
+                      }
+                    }}
+                    className={`bg-black text-white text-sm font-medium px-4 py-2 rounded-md ${isSaving ? "opacity-70" : "hover:opacity-90"}`}
+                    disabled={isSaving}
+                  >
+                    {isSaving ? "Saving..." : "Save & Continue"}
                   </button>
                 </div>
               </div>
@@ -319,8 +435,9 @@ export default function Home() {
                   Add a pickup window
                 </button>
                 <div>
-                  <label className="text-sm text-gray-700">Time slots occur</label>
+                  <label className="text-sm text-gray-700" htmlFor="time-slots-select">Time slots occur</label>
                   <select
+                    id="time-slots-select"
                     value={timeSlotsOption}
                     onChange={(e) => setTimeSlotsOption(e.target.value)}
                     className="mt-1 block w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
@@ -398,19 +515,86 @@ export default function Home() {
         </>
 
       )}
-      <AdvancedModal isOpen={showAdvanced} onClose={() => setShowAdvanced(false)} />
-      <PickupModalFlow isOpen={showCreatePickupModal} onClose={() => setShowCreatePickupModal(false)} />
+      <AdvancedModal
+        isOpen={showAdvanced}
+        onClose={() => setShowAdvanced(false)}
+        defaultHiddenFromStorefront={hideFromStorefront}
+        defaultCheckoutTimeLimit={checkoutTimeLimit}
+        onSave={async ({ hide_from_storefront, checkout_time_limit }) => {
+          setHideFromStorefront(hide_from_storefront);
+          setCheckoutTimeLimit(checkout_time_limit);
+          if (createdEventId) {
+            const res = await updateEvent(createdEventId, {
+              hide_from_storefront: hide_from_storefront,
+              checkout_time_limit: checkout_time_limit,
+            } as any);
+            if (res.success) toast.success("Advanced options saved");
+            else toast.error(res.message || "Failed to save advanced options");
+          }
+        }}
+      />
+      <PickupModalFlow
+        isOpen={showCreatePickupModal}
+        onClose={() => setShowCreatePickupModal(false)}
+        // @ts-ignore pass event id through global object for the jsx modal (jsx file)
+        eventId={createdEventId}
+        // @ts-ignore handler to create a pickup window
+        onSavePickup={async (data: { date: Date; start: string; end: string; location_name?: string; address?: string }) => {
+          if (!createdEventId) {
+            toast.error("Create and save event first");
+            return { success: false };
+          }
+          const res = await createPickupWindow({
+            event_id: createdEventId,
+            date: format(data.date, "yyyy-MM-dd"),
+            start_time: data.start,
+            end_time: data.end,
+            location_name: data.location_name,
+            address: data.address,
+          });
+          if (res.success) toast.success("Pickup window saved");
+          else toast.error(res.message || "Failed to save pickup window");
+          return res;
+        }}
+      />
       <PreorderCloseModal
         isOpen={showPremodal}
         onClose={() => setShowPremodal(false)}
         onSelect={setSelectedCloseOption}
         selected={selectedCloseOption}
       />
-      {showCreateModal && <MenuItemsModal
-        items={items}
-        setItems={setItems}
-        onClose={() => setShowCreateModal(false)} />
-      }
+      {showCreateModal && (
+        <MenuItemsModal
+          items={items}
+          setItems={setItems}
+          onClose={async () => {
+            // Persist any newly added items to backend if event exists
+            if (!createdEventId) {
+              setShowCreateModal(false);
+              return;
+            }
+            try {
+              const promises = items.map((it) =>
+                createMenuItem({
+                  event_id: createdEventId,
+                  name: it.name,
+                  description: it.description,
+                  price: it.price,
+                  image_url: it.image,
+                })
+              );
+              const results = await Promise.all(promises);
+              const ok = results.every((r) => r.success);
+              if (ok) toast.success("Menu items saved");
+              else toast.error("Some items failed to save");
+            } catch (e: any) {
+              toast.error(e?.message || "Failed to save items");
+            } finally {
+              setShowCreateModal(false);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }
