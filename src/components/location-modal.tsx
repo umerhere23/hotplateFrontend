@@ -194,7 +194,7 @@ export default function LocationModal({ location, onClose, onSave }: LocationMod
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg w-full max-w-md max-h-[90vh] overflow-y-auto">
         <div className="p-4 border-b border-gray-200 flex justify-between items-center">
           <h2 className="text-xl font-semibold">
@@ -303,13 +303,13 @@ export default function LocationModal({ location, onClose, onSave }: LocationMod
                 <div className="absolute top-2 right-2 flex space-x-2">
                   <button
                     onClick={handleOpenFileDialog}
-                    className="p-2 bg-gray-800 bg-opacity-70 rounded-full text-white hover:bg-opacity-90 transition-opacity"
+                    className="p-2 bg-gray-800/70 rounded-full text-white hover:bg-gray-800/90 transition-opacity"
                   >
                     <Upload className="h-4 w-4" />
                   </button>
                   <button
                     onClick={handleRemovePhoto}
-                    className="p-2 bg-red-600 bg-opacity-70 rounded-full text-white hover:bg-opacity-90 transition-opacity"
+                    className="p-2 bg-red-600/70 rounded-full text-white hover:bg-red-600/90 transition-opacity"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>

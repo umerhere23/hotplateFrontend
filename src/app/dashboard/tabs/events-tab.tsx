@@ -538,20 +538,21 @@ export default function Home() {
         onClose={() => setShowCreatePickupModal(false)}
         // @ts-ignore pass event id through global object for the jsx modal (jsx file)
         eventId={createdEventId}
-        // @ts-ignore handler to create a pickup window
-        onSavePickup={async (data: { date: Date; start: string; end: string; location_name?: string; address?: string }) => {
+    // @ts-ignore handler to create a pickup window
+    onSavePickup={async (data: { date: Date; start: string; end: string; pickup_location_id: string | number }) => {
           if (!createdEventId) {
             toast.error("Create and save event first");
             return { success: false };
           }
-          const res = await createPickupWindow({
-            event_id: createdEventId,
-            date: format(data.date, "yyyy-MM-dd"),
-            start_time: data.start,
-            end_time: data.end,
-            location_name: data.location_name,
-            address: data.address,
-          });
+          const res = await createPickupWindow(
+            createdEventId,
+            {
+              pickup_date: format(data.date, "yyyy-MM-dd"),
+              start_time: data.start,
+      end_time: data.end,
+      pickup_location_id: data.pickup_location_id,
+            }
+          );
           if (res.success) toast.success("Pickup window saved");
           else toast.error(res.message || "Failed to save pickup window");
           return res;

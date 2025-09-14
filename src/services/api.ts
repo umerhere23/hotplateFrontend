@@ -137,23 +137,24 @@ export async function updateEvent(
 }
 
 // Pickup Windows
-export type PickupWindow = {
-  id?: number | string
-  event_id: number | string
-  date: string // yyyy-MM-dd
-  start_time: string // e.g., 09:00 AM or 09:00
-  end_time: string
-  location_name?: string
-  address?: string
+export type CreatePickupWindowPayload = {
+  pickup_location_id?: number | string
+  pickup_date: string // yyyy-MM-dd
+  start_time: string // HH:mm
+  end_time: string // HH:mm
+  time_zone?: string
 }
 
-export async function createPickupWindow(payload: PickupWindow): Promise<{
+export async function createPickupWindow(
+  eventId: string | number,
+  payload: CreatePickupWindowPayload,
+): Promise<{
   success: boolean
   data?: any
   message?: string
 }> {
   try {
-    const { ok, data, message } = await api.post(`/pickup-windows`, {
+    const { ok, data, message } = await api.post(`/events/${eventId}/pickup-windows`, {
       data: payload,
       pointName: "createPickupWindow",
     })

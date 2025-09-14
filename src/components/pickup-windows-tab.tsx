@@ -7,6 +7,7 @@ import { createPortal } from "react-dom"
 import { Info, Plus, MoreVertical, Clock, MapPin, Calendar, Trash2, Edit } from "lucide-react"
 import { useRouter } from "next/navigation"
 import toast from "react-hot-toast"
+import api from "@/lib/api-client"
 import PickupWindowModal from "./pickup-window-modal"
 import type { PickupWindow, PickupLocation } from "@/types/pickup-types"
 
@@ -26,7 +27,7 @@ function DropdownMenu({
   onClose: () => void
   onEdit: () => void
   onDelete: () => void
-  buttonRef: React.RefObject<HTMLButtonElement>
+  buttonRef: React.RefObject<HTMLButtonElement | null>
 }) {
   const [position, setPosition] = useState({ top: 0, left: 0, right: 0 })
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -122,9 +123,9 @@ export default function PickupWindowsTab({ eventId }: PickupWindowsTabProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [windowToDelete, setWindowToDelete] = useState<string | number | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
-  const menuButtonRefs = useRef<{ [key: string]: React.RefObject<HTMLButtonElement> }>({})
+  const menuButtonRefs = useRef<{ [key: string]: React.RefObject<HTMLButtonElement | null> }>({})
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api"
+  // Using shared API client for auth + base URL
 
   useEffect(() => {
     if (eventId) {
@@ -146,27 +147,10 @@ export default function PickupWindowsTab({ eventId }: PickupWindowsTabProps) {
 
   const loadPickupLocations = async () => {
     try {
-      // Get the auth token from localStorage
-      const token = localStorage.getItem("auth_token")
-
-      if (!token) {
-        throw new Error("No authentication token found")
-      }
-
-      const response = await fetch(`${API_URL}/pickup-locations`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      })
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch pickup locations")
-      }
-
-      const data = await response.json()
-      console.log("Pickup locations data:", data)
-      setPickupLocations(data.data || [])
+  const { ok, data, message } = await api.get<any>(`/pickup-locations`, { pointName: "getPickupLocations" })
+  if (!ok) throw new Error(message || "Failed to fetch pickup locations")
+  console.log("Pickup locations data:", data)
+  setPickupLocations(Array.isArray(data) ? (data as any) : [])
     } catch (error) {
       console.error("Error loading pickup locations:", error)
     }
@@ -176,29 +160,13 @@ export default function PickupWindowsTab({ eventId }: PickupWindowsTabProps) {
     try {
       setLoading(true)
 
-      // Get the auth token from localStorage
-      const token = localStorage.getItem("auth_token")
-
-      if (!token) {
-        throw new Error("No authentication token found")
-      }
-
-      const response = await fetch(`${API_URL}/events/${eventId}/pickup-windows`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
+      const { ok, data, message } = await api.get<any>(`/events/${eventId}/pickup-windows`, {
+        pointName: "getPickupWindows",
       })
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch pickup windows")
-      }
-
-      const data = await response.json()
+      if (!ok) throw new Error(message || "Failed to fetch pickup windows")
       console.log("Pickup windows data:", data)
 
-      // Process the pickup windows data
-      const windows = data.data || []
+      const windows = Array.isArray(data) ? (data as any) : []
 
       // Ensure each window has the correct location data
       const processedWindows = windows.map((window: PickupWindow) => {
@@ -227,28 +195,10 @@ export default function PickupWindowsTab({ eventId }: PickupWindowsTabProps) {
 
   const loadEventDetails = async () => {
     try {
-      // Get the auth token from localStorage
-      const token = localStorage.getItem("auth_token")
-
-      if (!token) {
-        throw new Error("No authentication token found")
-      }
-
-      const response = await fetch(`${API_URL}/events/${eventId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      })
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch event details")
-      }
-
-      const data = await response.json()
-      if (data.data && data.data.time_slots_option) {
-        setTimeSlotsOption(data.data.time_slots_option)
-      }
+  const { ok, data, message } = await api.get<any>(`/events/${eventId}`, { pointName: "getEventDetails" })
+  if (!ok) throw new Error(message || "Failed to fetch event details")
+  const event = data as any
+  if (event && event.time_slots_option) setTimeSlotsOption(event.time_slots_option)
     } catch (error) {
       console.error("Error loading event details:", error)
     }
@@ -277,24 +227,10 @@ export default function PickupWindowsTab({ eventId }: PickupWindowsTabProps) {
     try {
       setIsDeleting(true)
 
-      // Get the auth token from localStorage
-      const token = localStorage.getItem("auth_token")
-
-      if (!token) {
-        throw new Error("No authentication token found")
-      }
-
-      const response = await fetch(`${API_URL}/events/${eventId}/pickup-windows/${windowToDelete}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
+      const { ok, message } = await api.delete(`/events/${eventId}/pickup-windows/${windowToDelete}`, {
+        pointName: "deletePickupWindow",
       })
-
-      if (!response.ok) {
-        throw new Error("Failed to delete pickup window")
-      }
+      if (!ok) throw new Error(message || "Failed to delete pickup window")
 
       // Remove the deleted window from the state
       setPickupWindows(pickupWindows.filter((window) => window.id !== windowToDelete))
@@ -359,27 +295,11 @@ export default function PickupWindowsTab({ eventId }: PickupWindowsTabProps) {
 
   const handleTimeSlotsOptionChange = async (option: string) => {
     try {
-      // Get the auth token from localStorage
-      const token = localStorage.getItem("auth_token")
-
-      if (!token) {
-        throw new Error("No authentication token found")
-      }
-
-      const response = await fetch(`${API_URL}/events/${eventId}`, {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          time_slots_option: option,
-        }),
+      const { ok, message } = await api.put(`/events/${eventId}`, {
+        data: { time_slots_option: option },
+        pointName: "updateEventTimeSlotsOption",
       })
-
-      if (!response.ok) {
-        throw new Error("Failed to update time slots option")
-      }
+      if (!ok) throw new Error(message || "Failed to update time slots option")
 
       setTimeSlotsOption(option)
     } catch (error) {
@@ -554,7 +474,7 @@ export default function PickupWindowsTab({ eventId }: PickupWindowsTabProps) {
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg w-full max-w-md p-6">
             <h3 className="text-lg font-medium mb-4">Delete Pickup Window</h3>
             <p className="text-gray-600 mb-6">
@@ -586,7 +506,6 @@ export default function PickupWindowsTab({ eventId }: PickupWindowsTabProps) {
         onSave={handleModalSave}
         eventId={eventId}
         pickupWindow={editingWindow}
-        pickupLocations={pickupLocations}
       />
     </div>
   )
