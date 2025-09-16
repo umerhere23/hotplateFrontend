@@ -13,6 +13,7 @@ import type { PickupWindow, PickupLocation } from "@/types/pickup-types"
 
 interface PickupWindowsTabProps {
   eventId: string
+  onContinue?: () => void
 }
 
 // Dropdown menu component that uses portal to render outside of any container constraints
@@ -110,7 +111,7 @@ function DropdownMenu({
   )
 }
 
-export default function PickupWindowsTab({ eventId }: PickupWindowsTabProps) {
+export default function PickupWindowsTab({ eventId, onContinue }: PickupWindowsTabProps) {
   const router = useRouter()
   const [pickupWindows, setPickupWindows] = useState<PickupWindow[]>([])
   const [pickupLocations, setPickupLocations] = useState<PickupLocation[]>([])
@@ -123,6 +124,7 @@ export default function PickupWindowsTab({ eventId }: PickupWindowsTabProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [windowToDelete, setWindowToDelete] = useState<string | number | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [selectedLocation, setSelectedLocation] = useState<PickupLocation | null>(null)
   const menuButtonRefs = useRef<{ [key: string]: React.RefObject<HTMLButtonElement | null> }>({})
 
   // Using shared API client for auth + base URL
@@ -185,6 +187,14 @@ export default function PickupWindowsTab({ eventId }: PickupWindowsTabProps) {
       })
 
       setPickupWindows(processedWindows)
+      
+      // Update selected location to the most recent pickup window's location
+      if (processedWindows.length > 0) {
+        const mostRecentWindow = processedWindows[processedWindows.length - 1]
+        if (mostRecentWindow.pickupLocation) {
+          setSelectedLocation(mostRecentWindow.pickupLocation)
+        }
+      }
     } catch (error) {
       console.error("Error loading pickup windows:", error)
       setError(error instanceof Error ? error.message : "Failed to load pickup windows")
@@ -285,6 +295,11 @@ export default function PickupWindowsTab({ eventId }: PickupWindowsTabProps) {
       setPickupWindows([...pickupWindows, newWindow])
     }
 
+    // Update selected location if this window has a location
+    if (newWindow.pickupLocation) {
+      setSelectedLocation(newWindow.pickupLocation)
+    }
+
     setIsModalOpen(false)
 
     // Reload pickup windows to ensure we have the latest data
@@ -341,6 +356,41 @@ export default function PickupWindowsTab({ eventId }: PickupWindowsTabProps) {
         </span>
       </div>
 
+      {/* Selected Location Display */}
+      {selectedLocation && (
+        <div className="bg-green-50 p-4 rounded-md border border-green-100">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <MapPin className="text-green-600" size={20} />
+              <div>
+                <p className="font-medium text-green-800">{selectedLocation.name}</p>
+                {(selectedLocation.formatted_address || selectedLocation.address) && (
+                  <p className="text-sm text-green-600">
+                    {selectedLocation.formatted_address || selectedLocation.address}
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="text-sm text-green-600">
+              Default pickup location
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* No location selected state */}
+      {!loading && !selectedLocation && pickupWindows.length === 0 && (
+        <div className="bg-orange-50 p-4 rounded-md border border-orange-100">
+          <div className="flex items-center gap-3">
+            <MapPin className="text-orange-500" size={20} />
+            <div>
+              <p className="font-medium text-orange-800">No location selected</p>
+              <p className="text-sm text-orange-600">Add a pickup window below to set your first location</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="bg-blue-50 p-4 rounded-md border border-blue-100">
         <div className="flex items-start gap-3">
           <Info className="text-blue-500 mt-0.5 flex-shrink-0" size={18} />
@@ -350,6 +400,77 @@ export default function PickupWindowsTab({ eventId }: PickupWindowsTabProps) {
           </p>
         </div>
       </div>
+
+      {/* Available Pickup Locations */}
+      {!loading && pickupLocations.length > 0 && (
+        <div className="bg-gray-50 p-4 rounded-md border border-gray-200">
+          <h3 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
+            <MapPin className="text-gray-600" size={18} />
+            Available Pickup Locations ({pickupLocations.length})
+          </h3>
+          <div className="grid gap-3 md:grid-cols-2">
+            {pickupLocations.map((location) => (
+              <div
+                key={location.id}
+                className="bg-white p-3 rounded-md border border-gray-200 hover:border-gray-300 transition-colors"
+              >
+                <div className="flex items-start gap-3">
+                  {location.photo_url || location.image_url ? (
+                    <img
+                      src={location.photo_url || location.image_url}
+                      alt={location.name}
+                      className="w-12 h-12 rounded-md object-cover flex-shrink-0"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 bg-gray-200 rounded-md flex items-center justify-center flex-shrink-0">
+                      <MapPin className="text-gray-400" size={20} />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-medium text-gray-900 truncate">{location.name}</h4>
+                    {(location.formatted_address || location.address) && (
+                      <p className="text-sm text-gray-600 mt-1">
+                        {location.formatted_address || location.address}
+                      </p>
+                    )}
+                    {location.instructions && (
+                      <p className="text-xs text-gray-500 mt-1 overflow-hidden"
+                         style={{
+                           display: '-webkit-box',
+                           WebkitLineClamp: 2,
+                           WebkitBoxOrient: 'vertical' as const,
+                         }}>
+                        {location.instructions}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* No locations available */}
+      {!loading && pickupLocations.length === 0 && (
+        <div className="bg-yellow-50 p-4 rounded-md border border-yellow-200">
+          <div className="flex items-start gap-3">
+            <MapPin className="text-yellow-600 mt-0.5 flex-shrink-0" size={18} />
+            <div>
+              <p className="font-medium text-yellow-800">No pickup locations available</p>
+              <p className="text-sm text-yellow-700 mt-1">
+                You need to create pickup locations first before adding pickup windows.
+              </p>
+              <button
+                onClick={() => router.push('/dashboard?tab=locations')}
+                className="mt-2 text-sm text-yellow-700 underline hover:text-yellow-800"
+              >
+                Go to Locations tab to add locations
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Loading state */}
       {loading && (
@@ -407,8 +528,10 @@ export default function PickupWindowsTab({ eventId }: PickupWindowsTabProps) {
                       {window.pickupLocation ? (
                         <>
                           {window.pickupLocation.name}
-                          {window.pickupLocation.short_address && (
-                            <span className="ml-1 text-gray-400">({window.pickupLocation.short_address})</span>
+                          {(window.pickupLocation.formatted_address || window.pickupLocation.address) && (
+                            <span className="ml-1 text-gray-400">
+                              ({window.pickupLocation.formatted_address || window.pickupLocation.address})
+                            </span>
                           )}
                         </>
                       ) : (
@@ -498,6 +621,22 @@ export default function PickupWindowsTab({ eventId }: PickupWindowsTabProps) {
           </div>
         </div>
       )}
+
+      {/* Save & Continue Button */}
+      <div className="flex justify-between items-center pt-6 border-t border-gray-200">
+        <p className="text-sm text-gray-500">
+          {pickupWindows.length === 0 
+            ? "You can add pickup windows later if needed."
+            : `${pickupWindows.length} pickup window${pickupWindows.length !== 1 ? 's' : ''} configured.`
+          }
+        </p>
+        <button
+          onClick={() => onContinue?.()}
+          className="px-6 py-2 bg-[var(--primary-color,#1A1625)] text-white rounded-md hover:bg-opacity-90 transition-colors"
+        >
+          Save & Continue
+        </button>
+      </div>
 
       {/* Pickup Window Modal */}
       <PickupWindowModal

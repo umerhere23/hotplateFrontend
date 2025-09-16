@@ -443,8 +443,16 @@ export default function Home() {
                     className="mt-1 block w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
                   >
                     <option value="anytime">Anytime between window start and end</option>
-                    <option value="fixed">At fixed intervals</option>
-                    <option value="custom">Custom time slots</option>
+                      <option value="5">Every 5 minutes</option>
+            <option value="10">Every 10 minutes</option>
+            <option value="12">Every 12 minutes</option>
+            <option value="15">Every 15 minutes</option>
+            <option value="20">Every 20 minutes</option>
+            <option value="30">Every 30 minutes</option>
+            <option value="45">Every 45 minutes</option>
+            <option value="60">Every 60 minutes</option>
+            <option value="90">Every 90 minutes</option>
+            <option value="120">Every 2 hours</option>
                   </select>
                 </div>
                 <div>
@@ -551,6 +559,7 @@ export default function Home() {
               start_time: data.start,
       end_time: data.end,
       pickup_location_id: data.pickup_location_id,
+              time_zone: "GMT+8",
             }
           );
           if (res.success) toast.success("Pickup window saved");

@@ -168,9 +168,10 @@ export async function createPickupWindow(
 
 // Menu Items
 export type MenuItemPayload = {
+  id?: number | string
   event_id: number | string
   name: string
-  description?: string
+  description: string
   price: number
   image_url?: string
 }
@@ -190,5 +191,54 @@ export async function createMenuItem(payload: MenuItemPayload): Promise<{
   } catch (err: any) {
     console.error("createMenuItem error", err)
     return { success: false, message: err?.message || "Unknown error" }
+  }
+}
+
+export async function updateMenuItem(
+  itemId: string | number,
+  payload: Partial<MenuItemPayload>
+): Promise<{ success: boolean; data?: any; message?: string }> {
+  try {
+    const { ok, data, message } = await api.patch(`/menu-items/${itemId}`, {
+      data: payload,
+      pointName: "updateMenuItem",
+    })
+    if (!ok) return { success: false, message }
+    return { success: true, data }
+  } catch (err: any) {
+    console.error("updateMenuItem error", err)
+    return { success: false, message: err?.message || "Unknown error" }
+  }
+}
+
+export async function deleteMenuItem(
+  itemId: string | number
+): Promise<{ success: boolean; data?: any; message?: string }> {
+  try {
+    const { ok, data, message } = await api.delete(`/menu-items/${itemId}`, {
+      pointName: "deleteMenuItem",
+    })
+    if (!ok) return { success: false, message }
+    return { success: true, data }
+  } catch (err: any) {
+    console.error("deleteMenuItem error", err)
+    return { success: false, message: err?.message || "Unknown error" }
+  }
+}
+
+export async function getMenuItems(
+  eventId: string | number
+): Promise<MenuItemPayload[]> {
+  try {
+    const { ok, data } = await api.get<any>(`/events/${eventId}/menu-items`, { 
+      pointName: "getMenuItems" 
+    })
+    if (ok && Array.isArray((data as any)?.data)) {
+      return (data as any).data
+    }
+    return []
+  } catch (error) {
+    console.error("Error fetching menu items:", error)
+    return []
   }
 }

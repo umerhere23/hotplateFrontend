@@ -19,7 +19,10 @@ import { useRouter } from "next/navigation"
 import OrderCloseModal, { type OrderCloseData } from "./order-close-modal"
 import ImageUploader from "./image-uploader"
 import PickupWindowsTab from "./pickup-windows-tab"
+import MenuTab from "./menu-tab"
+import PublishTab from "./publish-tab"
 import toast from "react-hot-toast"
+import { createEvent, updateEvent, type Event } from "@/services/api"
 
 type EventFormTab = "info" | "pickup" | "menu" | "publish"
 type WalkUpOrderingOption = "asap" | "pickup-windows"
@@ -217,7 +220,7 @@ export default function CreateEventForm({ onCancel, eventToEdit }: CreateEventFo
     }
   }
 
-  // Replace the saveEvent function with this updated version that handles updates and moves to next tab
+  // Replace the saveEvent function with this updated version that uses the API client
   const saveEvent = async (status: EventStatus = "draft") => {
     try {
       // Clear previous server errors
@@ -239,96 +242,77 @@ export default function CreateEventForm({ onCancel, eventToEdit }: CreateEventFo
       setIsSubmitting(true)
       setEventStatus(status)
 
-      // Get the auth token from localStorage
-      const token = localStorage.getItem("auth_token")
-
-      if (!token) {
-        toast.error("You must be logged in to create an event")
-        return
+      // Prepare event data
+      const eventData: Partial<Event> = {
+        title: eventName,
+        description: description,
+        pre_order_date: preOrderDate,
+        pre_order_time: preOrderTime,
+        order_close_data: orderCloseData,
+        walk_up_ordering: walkUpOrdering,
+        walk_up_ordering_option: walkUpOrderingOption,
+        hide_open_time: hideOpenTime,
+        disable_drop_notifications: disableDropNotifications,
+        hide_from_storefront: hideFromStorefront,
+        status: status,
       }
 
-      // Create form data for multipart/form-data submission
-      const formData = new FormData()
-      formData.append("title", eventName)
-      formData.append("description", description)
-      formData.append("pre_order_date", preOrderDate)
-      formData.append("pre_order_time", preOrderTime)
-      formData.append("order_close_data", JSON.stringify(orderCloseData))
-
-      // Explicitly convert boolean values to "1" or "0" strings
-      formData.append("walk_up_ordering", walkUpOrdering ? "1" : "0")
-      formData.append("walk_up_ordering_option", walkUpOrderingOption)
-      formData.append("hide_open_time", hideOpenTime ? "1" : "0")
-      formData.append("disable_drop_notifications", disableDropNotifications ? "1" : "0")
-      formData.append("hide_from_storefront", hideFromStorefront ? "1" : "0")
-      formData.append("status", status)
-      formData.append("time_slots_option", timeSlotsOption)
-
-      // If we have an image, add it to the form data
+      // Handle image upload
       if (eventImage) {
-        console.log("Processing image for upload:", eventImage.substring(0, 50) + "...")
-
-        // Only add the image if it's a new image (starts with data:)
         if (eventImage.startsWith("data:")) {
-          console.log("Converting base64 image to blob")
-          // Convert base64 to blob
+          // Convert base64 to blob and create FormData
+          const formData = new FormData()
           const base64Response = await fetch(eventImage)
           const blob = await base64Response.blob()
           formData.append("image", blob, "event-image.jpg")
+          
+          // Add other fields to FormData
+          Object.entries(eventData).forEach(([key, value]) => {
+            if (value !== undefined) {
+              if (typeof value === "object") {
+                formData.append(key, JSON.stringify(value))
+              } else {
+                formData.append(key, String(value))
+              }
+            }
+          })
+
+          // Use FormData for upload
+          const response = isEditMode && eventId
+            ? await updateEvent(eventId, formData as any)
+            : await createEvent(formData)
+
+          if (!response.success) {
+            throw new Error(response.message || "Failed to save event")
+          }
         } else if (isEditMode) {
-          // For edit mode with an existing image URL, we need to tell the backend to keep the existing image
-          console.log("Using existing image URL")
-          formData.append("keep_existing_image", "1")
-        }
-      } else if (isEditMode && !eventImage) {
-        // If editing and the image was removed, tell the backend to remove it
-        console.log("Removing existing image")
-        formData.append("remove_image", "1")
-      }
-
-      // Determine if this is a create or update operation
-      const isUpdate = !!eventId
-      const url = isUpdate ? `${API_URL}/events/${eventId}` : `${API_URL}/events`
-      const method = isUpdate ? "POST" : "POST"
-
-      // If updating, add _method=PUT to the form data (for Laravel)
-      if (isUpdate) {
-        formData.append("_method", "PUT")
-      }
-
-      console.log("Saving event to:", url, "Method:", method)
-
-      // Make API request to save event
-      const response = await fetch(url, {
-        method: method,
-        headers: {
-          Authorization: `Bearer ${token}`,
-          // Don't set Content-Type here, it will be set automatically with the boundary
-        },
-        body: formData,
-      })
-
-      const data = await response.json()
-      console.log("API response:", data)
-
-      if (!response.ok) {
-        if (data.errors) {
-          setServerErrors(data.errors)
-
-          // Create a formatted error message for the toast
-          const errorMessages = Object.entries(data.errors)
-            .map(([field, errors]) => `${field}: ${(errors as string[]).join(", ")}`)
-            .join("\n")
-
-          throw new Error(`Validation failed:\n${errorMessages}`)
-        } else {
-          throw new Error(data.message || "Failed to create event")
+          // Existing image URL, just update the data
+          eventData.image_url = eventImage
         }
       }
 
-      // Store the event ID for future updates
-      if (!isUpdate && data.data && data.data.id) {
-        setEventId(data.data.id.toString())
+      // If no image or using existing URL, send JSON data
+      if (!eventImage || (eventImage && !eventImage.startsWith("data:"))) {
+        const response = isEditMode && eventId
+          ? await updateEvent(eventId, eventData)
+          : await createEvent(eventData)
+
+        if (!response.success) {
+          if (response.message && response.message.includes("errors")) {
+            try {
+              const errorData = JSON.parse(response.message.split("errors: ")[1])
+              setServerErrors(errorData)
+            } catch {
+              // If parsing fails, show the original message
+            }
+          }
+          throw new Error(response.message || "Failed to save event")
+        }
+
+        // Store the event ID for future updates
+        if (!isEditMode && response.data && response.data.id) {
+          setEventId(response.data.id.toString())
+        }
       }
 
       // Show success message
@@ -760,7 +744,15 @@ export default function CreateEventForm({ onCancel, eventToEdit }: CreateEventFo
         {activeTab === "pickup" && (
           <div>
             {eventId ? (
-              <PickupWindowsTab eventId={eventId} />
+              <PickupWindowsTab 
+                eventId={eventId} 
+                onContinue={() => {
+                  const nextTab = getNextTab(activeTab)
+                  if (nextTab) {
+                    setActiveTab(nextTab)
+                  }
+                }}
+              />
             ) : (
               <div className="py-12 text-center text-gray-500">
                 <p>Please save the event information first to configure pickup windows.</p>
@@ -776,37 +768,94 @@ export default function CreateEventForm({ onCancel, eventToEdit }: CreateEventFo
         )}
 
         {activeTab === "menu" && (
-          <div className="py-12 text-center text-gray-500">
-            <p>Menu configuration will go here</p>
+          <div>
+            {eventId ? (
+              <MenuTab 
+                eventId={eventId} 
+                onContinue={() => {
+                  const nextTab = getNextTab(activeTab)
+                  if (nextTab) {
+                    setActiveTab(nextTab)
+                  }
+                }}
+              />
+            ) : (
+              <div className="py-12 text-center text-gray-500">
+                <p>Please save the event information first to configure menu items.</p>
+                <button
+                  onClick={handleSaveAndContinue}
+                  className="mt-4 px-6 py-2 bg-[var(--primary-color,#1A1625)] text-white rounded-md hover:bg-opacity-90 transition-colors"
+                >
+                  Save Event Information
+                </button>
+              </div>
+            )}
           </div>
         )}
 
         {activeTab === "publish" && (
-          <div className="py-12 text-center text-gray-500">
-            <p>Publishing options will go here</p>
+          <div>
+            {eventId ? (
+              <PublishTab 
+                eventId={eventId} 
+                eventData={{
+                  title: eventName,
+                  description: description,
+                  image_url: eventImage,
+                  pre_order_date: preOrderDate,
+                  pre_order_time: preOrderTime,
+                  order_close_data: orderCloseData,
+                  walk_up_ordering: walkUpOrdering,
+                  walk_up_ordering_option: walkUpOrderingOption,
+                  hide_open_time: hideOpenTime,
+                  disable_drop_notifications: disableDropNotifications,
+                  hide_from_storefront: hideFromStorefront,
+                  status: eventStatus,
+                }}
+                onEventUpdate={(updatedEvent) => {
+                  if (updatedEvent.status && (updatedEvent.status === "draft" || updatedEvent.status === "published")) {
+                    setEventStatus(updatedEvent.status)
+                  }
+                }}
+              />
+            ) : (
+              <div className="py-12 text-center text-gray-500">
+                <p>Please save the event information first to publish.</p>
+                <button
+                  onClick={handleSaveAndContinue}
+                  className="mt-4 px-6 py-2 bg-[var(--primary-color,#1A1625)] text-white rounded-md hover:bg-opacity-90 transition-colors"
+                >
+                  Save Event Information
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
 
-      {/* Footer */}
-      <div className="flex justify-end p-4 border-t border-gray-200">
-        <button
-          onClick={handleSaveAndContinue}
-          disabled={isSubmitting}
-          className="px-6 py-3 bg-[var(--primary-color,#1A1625)] text-white font-medium rounded-md hover:bg-[var(--primary-color-hover,#2a2435)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {isSubmitting ? (
-            <div className="flex items-center">
-              <Loader2 className="animate-spin mr-2 h-4 w-4" />
-              Saving...
-            </div>
-          ) : isEditMode ? (
-            "Save Changes"
-          ) : (
-            "Save & Continue"
-          )}
-        </button>
-      </div>
+      {/* Footer - Only show for Info and Publish tabs */}
+      {(activeTab === "info" || activeTab === "publish") && (
+        <div className="flex justify-end p-4 border-t border-gray-200">
+          <button
+            onClick={handleSaveAndContinue}
+            disabled={isSubmitting}
+            className="px-6 py-3 bg-[var(--primary-color,#1A1625)] text-white font-medium rounded-md hover:bg-[var(--primary-color-hover,#2a2435)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isSubmitting ? (
+              <div className="flex items-center">
+                <Loader2 className="animate-spin mr-2 h-4 w-4" />
+                Saving...
+              </div>
+            ) : isEditMode ? (
+              "Save Changes"
+            ) : activeTab === "publish" ? (
+              "Save"
+            ) : (
+              "Save & Continue"
+            )}
+          </button>
+        </div>
+      )}
 
       {/* Image Preview Modal */}
       {isImagePreviewOpen && eventImage && (
