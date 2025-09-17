@@ -242,3 +242,175 @@ export async function getMenuItems(
     return []
   }
 }
+
+// Product API interfaces
+export interface Product {
+  id: number;
+  name: string;
+  price: string | number;
+  description: string;
+  date?: string;
+  image?: string;
+  image_url?: string;
+  special_instructions?: boolean;
+  option_groups?: any[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface CreateProductPayload {
+  name: string;
+  price: string | number;
+  description: string;
+  image?: string;
+  special_instructions?: boolean;
+  option_groups?: any[];
+}
+
+export interface UpdateProductPayload extends Partial<CreateProductPayload> {
+  id: number;
+}
+
+// Product API functions
+export async function getProducts(): Promise<Product[]> {
+  try {
+  const { ok, data } = await api.get<any>("/products", { pointName: "getProducts" });
+
+  if (!ok) return [];
+
+  // Support both shapes: [{...}] or { success: true, data: [...] }
+  const items: any[] = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
+
+  // Normalize each product to frontend Product shape
+  return items.map(mapServerProduct);
+  } catch (error) {
+    console.error("Error fetching products:", error);
+    return [];
+  }
+}
+
+export async function createProduct(
+  payload: CreateProductPayload
+): Promise<{ success: boolean; data?: Product; message?: string }> {
+  try {
+    // Convert frontend payload keys to API expected camelCase payload
+    const apiPayload: any = {
+      name: payload.name,
+      price: typeof payload.price === "number" ? payload.price.toFixed(2) : payload.price,
+      description: payload.description,
+      image: payload.image,
+  specialInstructions: payload.special_instructions ?? false,
+  optionGroups: (payload.option_groups ?? []).map((g: any) => ({
+        name: g.name,
+        required: !!g.required,
+        options: (g.options || []).map((o: any) => ({
+          name: o.name,
+          price: typeof o.price === 'number' ? o.price.toFixed(2) : String(o.price || '0')
+        }))
+      }))
+    };
+
+    const { ok, data, message } = await api.post<any>("/products", {
+      data: apiPayload,
+      pointName: "createProduct",
+    });
+
+    if (!ok) return { success: false, message };
+
+    // Normalize returned product
+    return { success: true, data: data ? mapServerProduct(data) : undefined };
+  } catch (err: any) {
+    console.error("createProduct error", err);
+    return { success: false, message: err?.message || "Unknown error" };
+  }
+}
+
+export async function updateProduct(
+  productId: string | number,
+  payload: Partial<CreateProductPayload>
+): Promise<{ success: boolean; data?: Product; message?: string }> {
+  try {
+    const apiPayload: any = {};
+    if (payload.name !== undefined) apiPayload.name = payload.name;
+    if (payload.price !== undefined) apiPayload.price = typeof payload.price === 'number' ? payload.price.toFixed(2) : payload.price;
+    if (payload.description !== undefined) apiPayload.description = payload.description;
+    if (payload.image !== undefined) apiPayload.image = payload.image;
+    if (payload.special_instructions !== undefined) apiPayload.specialInstructions = payload.special_instructions;
+    if (payload.option_groups !== undefined) apiPayload.optionGroups = (payload.option_groups || []).map((g: any) => ({
+      name: g.name,
+      required: !!g.required,
+      options: (g.options || []).map((o: any) => ({ name: o.name, price: typeof o.price === 'number' ? o.price.toFixed(2) : String(o.price || '0') }))
+    }));
+
+    const { ok, data, message } = await api.put<any>(`/products/${productId}`, {
+      data: apiPayload,
+      pointName: "updateProduct",
+    });
+
+    if (!ok) return { success: false, message };
+
+    return { success: true, data: data ? mapServerProduct(data) : undefined };
+  } catch (err: any) {
+    console.error("updateProduct error", err);
+    return { success: false, message: err?.message || "Unknown error" };
+  }
+}
+
+export async function deleteProduct(
+  productId: string | number
+): Promise<{ success: boolean; data?: any; message?: string }> {
+  try {
+    const { ok, data, message } = await api.delete(`/products/${productId}`, {
+      pointName: "deleteProduct",
+    });
+    
+    if (!ok) return { success: false, message };
+    return { success: true, data };
+  } catch (err: any) {
+    console.error("deleteProduct error", err);
+    return { success: false, message: err?.message || "Unknown error" };
+  }
+}
+
+export async function duplicateProduct(
+  productId: string | number
+): Promise<{ success: boolean; data?: Product; message?: string }> {
+  try {
+    const { ok, data, message } = await api.post<Product>(`/products/${productId}/duplicate`, {
+      pointName: "duplicateProduct",
+    });
+    
+    if (!ok) return { success: false, message };
+    return { success: true, data };
+  } catch (err: any) {
+    console.error("duplicateProduct error", err);
+    return { success: false, message: err?.message || "Unknown error" };
+  }
+}
+
+// Helper to normalize server product object to frontend Product interface
+function mapServerProduct(p: any): Product {
+  return {
+    id: Number(p.id),
+    name: p.name,
+    price: p.price,
+    description: p.description,
+    date: p.date,
+    image: p.image ?? undefined,
+    image_url: p.imageUrl ?? p.image_url ?? undefined,
+    special_instructions: p.specialInstructions ?? p.special_instructions ?? false,
+    option_groups: (p.optionGroups ?? p.option_groups ?? []).map((g: any) => ({
+      id: g.id,
+      name: g.name,
+      required: !!g.required,
+      options: (g.options || []).map((o: any) => ({
+        id: o.id,
+        name: o.name,
+        price: typeof o.price === 'string' ? parseFloat(o.price) : o.price
+      }))
+    })),
+    created_at: p.created_at ?? p.createdAt,
+    updated_at: p.updated_at ?? p.updatedAt
+  } as Product;
+}
+
