@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Play } from "lucide-react";
 import * as Switch from "@radix-ui/react-switch";
 import "react-day-picker/dist/style.css";
@@ -10,6 +10,7 @@ import PreorderCloseModal from "@/app/modals/preorder-close-modal";
 import MenuItemsModal from "@/app/modals/additem-modal";
 import PickupModalFlow from "@/app/modals/create-pickupmodal";
 import toast from "react-hot-toast";
+import api from "@/lib/api-client";
 import { createEvent, createMenuItem, createPickupWindow, updateEvent } from "@/services/api";
 
 interface Item {
@@ -36,6 +37,11 @@ export default function Home() {
   const [timeSlotsOption, setTimeSlotsOption] = useState(
     "anytime"
   );
+  const [selectedPickupWindowId, setSelectedPickupWindowId] = useState<string | number | null>(null);
+  const [pickupWindows, setPickupWindows] = useState<any[]>([]);
+  const [pickupLocations, setPickupLocations] = useState<any[]>([]);
+  const [selectedLocationId, setSelectedLocationId] = useState<string | number | null>(typeof window !== 'undefined' ? localStorage.getItem('selectedPickupLocationId') ?? null : null);
+  const [loadingPickupWindows, setLoadingPickupWindows] = useState(false);
   // New: controlled form state
   const [eventName, setEventName] = useState<string>("New Event");
   const [eventDescription, setEventDescription] = useState<string>("");
@@ -62,6 +68,39 @@ export default function Home() {
     "01:30 PM",
     "02:00 PM",
   ];
+
+  // Load pickup windows and locations for the created event
+  const loadPickupLocations = async () => {
+    try {
+      const { ok, data, message } = await api.get<any>(`/pickup-locations`, { pointName: "getPickupLocations" })
+      if (!ok) throw new Error(message || "Failed to fetch pickup locations")
+      setPickupLocations(Array.isArray(data) ? data : (data?.data ?? []))
+    } catch (err) {
+      console.error("Failed to load pickup locations", err)
+    }
+  }
+
+  const loadPickupWindows = async () => {
+    if (!createdEventId) return
+    try {
+      setLoadingPickupWindows(true)
+      const { ok, data, message } = await api.get<any>(`/events/${createdEventId}/pickup-windows`, { pointName: "getPickupWindows" })
+      if (!ok) throw new Error(message || "Failed to fetch pickup windows")
+      const items = Array.isArray(data) ? data : (data?.data ?? [])
+      setPickupWindows(items)
+    } catch (err) {
+      console.error("Failed to load pickup windows", err)
+    } finally {
+      setLoadingPickupWindows(false)
+    }
+  }
+
+  useEffect(() => {
+    if (activeTab === 'pickup' && createdEventId) {
+      loadPickupLocations()
+      loadPickupWindows()
+    }
+  }, [activeTab, createdEventId])
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -425,7 +464,7 @@ export default function Home() {
               <div className="space-y-4 bg-white p-4 ">
                 <div className="flex justify-between items-center">
                   <h2 className="text-lg font-semibold">Pickup Windows</h2>
-                  <span className="text-xs text-gray-500">0 time slots</span>
+                  <span className="text-xs text-gray-500">{pickupWindows.length} time slot{pickupWindows.length !== 1 ? 's' : ''}</span>
                 </div>
                 <div className="bg-cyan-100 text-sm text-gray-700 p-3 rounded">
                   Pickup windows let customers choose when and where they pickup their
@@ -434,7 +473,44 @@ export default function Home() {
                 <button onClick={() => setShowCreatePickupModal(true)} className="w-full bg-black text-white text-sm font-medium rounded-md p-3 hover:bg-gray-800">
                   Add a pickup window
                 </button>
-                <div>
+                
+                {/* List saved pickup windows */}
+                {loadingPickupWindows ? (
+                  <div className="text-sm text-gray-500 mt-2">Loading pickup windows...</div>
+                ) : pickupWindows.length > 0 ? (
+                  <div className="mt-4 space-y-2">
+                    <label className="text-sm font-medium">Select a pickup window</label>
+                    <div className="space-y-2">
+                      {pickupWindows.map((pw) => {
+                        const location = pickupLocations.find(l => String(l.id) === String(pw.pickup_location_id));
+                        const isSelected = String(selectedPickupWindowId) === String(pw.id);
+                        return (
+                          <button
+                            key={pw.id}
+                            onClick={() => setSelectedPickupWindowId(pw.id)}
+                            className={`w-full text-left p-3 rounded border transition-colors ${
+                              isSelected
+                                ? 'border-black bg-gray-50'
+                                : 'border-gray-200 hover:border-gray-400'
+                            } `}
+                          >
+                            <div className="flex justify-between items-center">
+                              <div>
+                                <div className="font-medium">{pw.pickup_date} • {pw.start_time} - {pw.end_time}</div>
+                                <div className="text-sm text-gray-600">{location?.name || `Location ID: ${pw.pickup_location_id}`}</div>
+                              </div>
+                              {isSelected && <div className="text-sm font-semibold text-black">Selected</div>}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-4 text-sm text-gray-500">No pickup windows created yet.</div>
+                )}
+
+                <div className="mt-4">
                   <label className="text-sm text-gray-700" htmlFor="time-slots-select">Time slots occur</label>
                   <select
                     id="time-slots-select"
@@ -456,8 +532,37 @@ export default function Home() {
                   </select>
                 </div>
                 <div>
-                  <button className="bg-gray-200 text-gray-400 text-sm font-medium px-4 py-2 rounded-md cursor-not-allowed">
-                    Save &amp; Continue
+                  <button
+                    onClick={async () => {
+                      if (!createdEventId) {
+                        toast.error('Please save the event first');
+                        return;
+                      }
+                      if (!selectedPickupWindowId) {
+                        toast.error('Select a pickup window to continue');
+                        return;
+                      }
+                      try {
+                        setIsSaving(true);
+                        // Save the selected pickup window as default on the event
+                        const res = await updateEvent(createdEventId, { default_pickup_window_id: selectedPickupWindowId, default_pickup_location_id: selectedLocationId } as any);
+                        if (!res.success) {
+                          toast.error(res.message || 'Failed to save pickup selection');
+                          return;
+                        }
+                        toast.success('Pickup window selected');
+                        // Proceed to next tab (menu)
+                        setActiveTab('menu');
+                      } catch (err: any) {
+                        toast.error(err?.message || 'Failed to save pickup selection');
+                      } finally {
+                        setIsSaving(false);
+                      }
+                    }}
+                    disabled={selectedPickupWindowId == null}
+                    className={`w-full text-sm font-medium px-4 py-2 rounded-md ${selectedPickupWindowId != null ? 'bg-black text-white hover:opacity-90' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
+                  >
+                    {isSaving ? 'Saving...' : 'Save & Continue'}
                   </button>
                 </div>
 
@@ -564,6 +669,16 @@ export default function Home() {
           );
           if (res.success) toast.success("Pickup window saved");
           else toast.error(res.message || "Failed to save pickup window");
+          // Refresh list of pickup windows so newly created window shows up
+          if (res.success) {
+            // Try to extract new window id from response
+            const newId = res.data?.id ?? res.data?.data?.id ?? null;
+            // Reload windows then mark the newly created one as selected
+            try {
+              await loadPickupWindows();
+            } catch {}
+            if (newId !== null) setSelectedPickupWindowId(newId);
+          }
           return res;
         }}
       />

@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { createPickupWindow } from "@/services/api";
 import { DayPicker } from "react-day-picker";
 import LocationSelector from "@/components/location-selector";
 import "react-day-picker/dist/style.css";
@@ -30,7 +31,7 @@ export default function PickupModalFlow({ isOpen, onClose, eventId, onSavePickup
         <div className="fixed inset-0 flex items-center justify-center bg-black/20 z-50">
           <div className="bg-white w-[500px] h-[95vh] overflow-y-auto rounded-xl shadow-lg p-6 relative">
             <button onClick={closeModal} className="absolute top-4 right-4 text-gray-500 hover:text-black">✕</button>
-            <h2 className="text-xl font-semibold mb-6">Create Pickup Window</h2>
+            <h2 className="text-xl font-semibold mb-6"> Create Pickup Window</h2>
 
             <div className="grid grid-cols-3 gap-4 mb-6 relative">
               <div className="relative">
@@ -108,13 +109,27 @@ export default function PickupModalFlow({ isOpen, onClose, eventId, onSavePickup
                     alert("Please select a pickup location");
                     return;
                   }
-                  const payload = {
-                    date: pickupDate,
-                    start: startTime,
-                    end: endTime,
-                    pickup_location_id: selectedLocation.id,
-                  };
-                  const res = onSavePickup ? await onSavePickup(payload) : { success: false };
+                    const toApiDate = (d) => {
+                      const yyyy = d.getFullYear();
+                      const mm = String(d.getMonth() + 1).padStart(2, '0');
+                      const dd = String(d.getDate()).padStart(2, '0');
+                      return `${yyyy}-${mm}-${dd}`;
+                    };
+
+                    const payload = {
+                      pickup_date: toApiDate(pickupDate),
+                      start_time: startTime,
+                      end_time: endTime,
+                      pickup_location_id: selectedLocation.id,
+                    };
+
+                    let res = { success: false };
+                    if (eventId) {
+                      res = await createPickupWindow(eventId, payload);
+                    } else if (onSavePickup) {
+                      res = await onSavePickup(payload);
+                    }
+
                   if (res?.success) closeModal();
                 }}
                 className="bg-black text-white font-medium px-6 py-2 rounded-md text-sm"
