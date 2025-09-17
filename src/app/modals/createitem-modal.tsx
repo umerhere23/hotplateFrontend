@@ -1,5 +1,7 @@
 "use client";
 import { useState } from "react";
+import { createMenuItem } from "@/services/api";
+import toast from "react-hot-toast";
 
 interface Item {
   id: number;
@@ -12,14 +14,17 @@ interface Item {
 export default function CreateItemModal({
   onBack,
   onCreate,
+  eventId,
 }: {
   onBack: () => void;
   onCreate: (item: Item) => void;
+  eventId?: string | number | null;
 }) {
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
   const [price, setPrice] = useState(0);
   const [image, setImage] = useState<string | undefined>();
+  const [isLoading, setIsLoading] = useState(false);
 
   // handle file upload
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -33,15 +38,79 @@ export default function CreateItemModal({
     }
   };
 
-  const handleSubmit = () => {
-    if (!name) return;
-    onCreate({
-      id: Date.now(),
-      name,
-      description: desc,
-      price,
-      image,
-    });
+  const handleSubmit = async () => {
+    if (!name.trim()) {
+      toast.error("Please enter a name for the item");
+      return;
+    }
+    
+    if (price <= 0) {
+      toast.error("Please enter a valid price");
+      return;
+    }
+
+    // If eventId is provided, save to backend first
+    if (eventId) {
+      setIsLoading(true);
+      try {
+        const payload = {
+          event_id: eventId,
+          name: name.trim(),
+          description: desc.trim(),
+          price: price,
+          image_url: image || undefined,
+        };
+
+        console.log("Creating menu item with payload:", payload);
+        const result = await createMenuItem(payload);
+        
+        if (!result.success) {
+          toast.error(result.message || "Failed to create menu item");
+          return;
+        }
+
+        toast.success("Menu item created successfully");
+        
+        // Call the onCreate callback with the API response data or local data
+        const newItem: Item = {
+          id: result.data?.id || Date.now(),
+          name: name.trim(),
+          description: desc.trim(),
+          price: price,
+          image: image,
+        };
+        
+        onCreate(newItem);
+        
+        // Reset form
+        setName("");
+        setDesc("");
+        setPrice(0);
+        setImage(undefined);
+        
+      } catch (error: any) {
+        console.error("Error creating menu item:", error);
+        toast.error(error?.message || "Failed to create menu item");
+      } finally {
+        setIsLoading(false);
+      }
+    } else {
+      // Fallback: just create local item if no eventId
+      toast.success("Item added to local menu");
+      onCreate({
+        id: Date.now(),
+        name: name.trim(),
+        description: desc.trim(),
+        price,
+        image,
+      });
+      
+      // Reset form
+      setName("");
+      setDesc("");
+      setPrice(0);
+      setImage(undefined);
+    }
   };
 
   return (
@@ -125,9 +194,14 @@ export default function CreateItemModal({
         {/* Footer */}
         <button
           onClick={handleSubmit}
-          className="w-full bg-black text-white px-4 py-2 rounded-md"
+          disabled={isLoading || !name.trim() || price <= 0}
+          className={`w-full px-4 py-2 rounded-md text-white font-medium ${
+            isLoading || !name.trim() || price <= 0
+              ? 'bg-gray-400 cursor-not-allowed'
+              : 'bg-black hover:bg-gray-800'
+          }`}
         >
-          Create item
+          {isLoading ? "Creating..." : "Create item"}
         </button>
       </div>
     </div>

@@ -23,6 +23,9 @@ export type Event = {
   disable_drop_notifications: boolean
   hide_from_storefront: boolean
   checkout_time_limit?: number
+  default_pickup_window_id?: string | number
+  default_pickup_location_id?: string | number
+  time_slots_option?: string
   status: "draft" | "published" | "upcoming" | "active" | "completed"
   created_at?: string
   updated_at?: string
@@ -124,7 +127,7 @@ export async function updateEvent(
   payload: Partial<Event>
 ): Promise<{ success: boolean; data?: any; message?: string }> {
   try {
-    const { ok, data, message } = await api.patch(`/events/${eventId}`, {
+    const { ok, data, message } = await api.put(`/events/${eventId}`, {
       data: payload,
       pointName: "updateEvent",
     })

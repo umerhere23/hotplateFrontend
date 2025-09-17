@@ -11,7 +11,7 @@ import MenuItemsModal from "@/app/modals/additem-modal";
 import PickupModalFlow from "@/app/modals/create-pickupmodal";
 import toast from "react-hot-toast";
 import api from "@/lib/api-client";
-import { createEvent, createMenuItem, createPickupWindow, updateEvent } from "@/services/api";
+import { createEvent, createMenuItem, createPickupWindow, updateEvent, getMenuItems } from "@/services/api";
 
 interface Item {
   id: number;
@@ -19,6 +19,13 @@ interface Item {
   description: string;
   price: number;
   image?: string;
+  // Additional fields from API
+  eventId?: number;
+  available?: boolean;
+  category?: string | null;
+  position?: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export default function Home() {
@@ -42,6 +49,7 @@ export default function Home() {
   const [pickupLocations, setPickupLocations] = useState<any[]>([]);
   const [selectedLocationId, setSelectedLocationId] = useState<string | number | null>(typeof window !== 'undefined' ? localStorage.getItem('selectedPickupLocationId') ?? null : null);
   const [loadingPickupWindows, setLoadingPickupWindows] = useState(false);
+  const [loadingMenuItems, setLoadingMenuItems] = useState(false);
   // New: controlled form state
   const [eventName, setEventName] = useState<string>("New Event");
   const [eventDescription, setEventDescription] = useState<string>("");
@@ -81,26 +89,96 @@ export default function Home() {
   }
 
   const loadPickupWindows = async () => {
-    if (!createdEventId) return
+    if (!createdEventId) {
+      console.log("No event ID available for loading pickup windows")
+      return
+    }
+    
+    console.log(`Loading pickup windows for event ID: ${createdEventId}`)
     try {
       setLoadingPickupWindows(true)
       const { ok, data, message } = await api.get<any>(`/events/${createdEventId}/pickup-windows`, { pointName: "getPickupWindows" })
+      console.log("Pickup windows API response:", { ok, data, message })
+      
       if (!ok) throw new Error(message || "Failed to fetch pickup windows")
       const items = Array.isArray(data) ? data : (data?.data ?? [])
+      console.log("Processed pickup windows:", items)
       setPickupWindows(items)
     } catch (err) {
       console.error("Failed to load pickup windows", err)
+      toast.error("Failed to load pickup windows")
     } finally {
       setLoadingPickupWindows(false)
     }
   }
 
+  const loadMenuItems = async () => {
+    if (!createdEventId) {
+      console.log("No event ID available for loading menu items")
+      return
+    }
+    
+    console.log(`Loading menu items for event ID: ${createdEventId}`)
+    try {
+      setLoadingMenuItems(true)
+      const menuItems = await getMenuItems(createdEventId)
+      console.log("Menu items API response:", menuItems)
+      
+      // Map API response to local Item interface
+      const mappedItems: Item[] = menuItems.map((item: any) => ({
+        id: Number(item.id),
+        name: item.name,
+        description: item.description,
+        price: typeof item.price === 'string' ? parseFloat(item.price) : item.price,
+        image: item.imageUrl || item.image_url || item.image || undefined,
+        // Add additional fields for reference
+        eventId: item.eventId,
+        available: item.available,
+        category: item.category,
+        position: item.position,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt
+      }))
+      
+      console.log("Mapped menu items:", mappedItems)
+      setItems(mappedItems)
+    } catch (err) {
+      console.error("Failed to load menu items", err)
+      toast.error("Failed to load menu items")
+    } finally {
+      setLoadingMenuItems(false)
+    }
+  }
+
+  // Load pickup windows when the pickup tab becomes active or when eventId changes
   useEffect(() => {
+    console.log("useEffect triggered:", { activeTab, createdEventId })
     if (activeTab === 'pickup' && createdEventId) {
+      console.log("Loading pickup data...")
       loadPickupLocations()
       loadPickupWindows()
     }
+    if (activeTab === 'menu' && createdEventId) {
+      console.log("Loading menu data...")
+      loadMenuItems()
+    }
   }, [activeTab, createdEventId])
+
+  // Also load pickup windows immediately when an event is created
+  useEffect(() => {
+    if (createdEventId) {
+      console.log("Event created, loading pickup windows for ID:", createdEventId)
+      loadPickupWindows()
+    }
+  }, [createdEventId])
+
+  // Load menu items when an event is created
+  useEffect(() => {
+    if (createdEventId) {
+      console.log("Event created, loading menu items for ID:", createdEventId)
+      loadMenuItems()
+    }
+  }, [createdEventId])
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -482,8 +560,12 @@ export default function Home() {
                     <label className="text-sm font-medium">Select a pickup window</label>
                     <div className="space-y-2">
                       {pickupWindows.map((pw) => {
-                        const location = pickupLocations.find(l => String(l.id) === String(pw.pickup_location_id));
                         const isSelected = String(selectedPickupWindowId) === String(pw.id);
+                        // Format the date from ISO string
+                        const pickupDate = pw.pickupDate ? new Date(pw.pickupDate).toLocaleDateString() : 'N/A';
+                        // Use the nested pickupLocation object
+                        const locationName = pw.pickupLocation?.name || `Location ID: ${pw.pickupLocationId}`;
+                        
                         return (
                           <button
                             key={pw.id}
@@ -496,8 +578,11 @@ export default function Home() {
                           >
                             <div className="flex justify-between items-center">
                               <div>
-                                <div className="font-medium">{pw.pickup_date} • {pw.start_time} - {pw.end_time}</div>
-                                <div className="text-sm text-gray-600">{location?.name || `Location ID: ${pw.pickup_location_id}`}</div>
+                                <div className="font-medium">{pickupDate} • {pw.startTime} - {pw.endTime}</div>
+                                <div className="text-sm text-gray-600">{locationName}</div>
+                                {pw.pickupLocation?.address && (
+                                  <div className="text-xs text-gray-500">{pw.pickupLocation.address}</div>
+                                )}
                               </div>
                               {isSelected && <div className="text-sm font-semibold text-black">Selected</div>}
                             </div>
@@ -544,8 +629,16 @@ export default function Home() {
                       }
                       try {
                         setIsSaving(true);
-                        // Save the selected pickup window as default on the event
-                        const res = await updateEvent(createdEventId, { default_pickup_window_id: selectedPickupWindowId, default_pickup_location_id: selectedLocationId } as any);
+                        // Find the selected pickup window to get its location ID
+                        const selectedWindow = pickupWindows.find(pw => String(pw.id) === String(selectedPickupWindowId));
+                        const locationId = selectedWindow?.pickupLocationId || selectedWindow?.pickupLocation?.id || null;
+                        
+                        // Save the selected pickup window as default on the event along with time slots option
+                        const res = await updateEvent(createdEventId, { 
+                          default_pickup_window_id: selectedPickupWindowId, 
+                          default_pickup_location_id: locationId,
+                          time_slots_option: timeSlotsOption
+                        } as any);
                         if (!res.success) {
                           toast.error(res.message || 'Failed to save pickup selection');
                           return;
@@ -570,40 +663,80 @@ export default function Home() {
             )}
 
             {activeTab === "menu" && (
-              <div className="relative flex flex-col items-center justify-center bg-white h-[500px] w-full">
-                <div className="flex flex-col items-center">
-                  {items.length === 0 ? (
-                    <>
+              <div className="relative bg-white min-h-[500px] w-full p-6">
+                <div className="mb-6">
+                  <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-lg font-semibold">Menu Items</h2>
+                    <span className="text-xs text-gray-500">
+                      {loadingMenuItems ? "Loading..." : `${items.length} item${items.length !== 1 ? 's' : ''}`}
+                    </span>
+                  </div>
+                  
+                  {loadingMenuItems ? (
+                    <div className="flex flex-col items-center justify-center py-12">
+                      <div className="text-sm text-gray-500">Loading menu items...</div>
+                    </div>
+                  ) : items.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-12">
                       <p className="text-gray-600 mb-4 text-sm">
                         Your menu is empty, let&apos;s change that
                       </p>
                       <button
                         onClick={() => setShowCreateModal(true)}
-                        className="bg-red-500 text-white px-6 py-2 rounded-md"
+                        className="bg-red-500 text-white px-6 py-2 rounded-md hover:bg-red-600"
                       >
                         Add Items
                       </button>
-                    </>
+                    </div>
                   ) : (
-                    <div className="space-y-2">
+                    <div className="space-y-3">
+                      <div className="text-sm text-gray-600 mb-2">
+                        Selected items for this event:
+                      </div>
                       {items.map((item) => (
                         <div
                           key={item.id}
-                          className="flex items-center gap-3 border rounded-md p-2"
+                          className={`flex items-center gap-4 border rounded-lg p-4 ${
+                            item.available ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'
+                          }`}
                         >
                           <img
                             src={item.image || "/cake.png"}
                             alt={item.name}
-                            className="w-10 h-10 rounded object-cover"
+                            className="w-16 h-16 rounded-lg object-cover"
                           />
-                          <p className="text-sm">{item.name}</p>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-medium text-gray-900">{item.name}</h3>
+                              <span className={`px-2 py-1 text-xs rounded-full ${
+                                item.available 
+                                  ? 'bg-green-100 text-green-700' 
+                                  : 'bg-gray-100 text-gray-700'
+                              }`}>
+                                {item.available ? 'Available' : 'Unavailable'}
+                              </span>
+                            </div>
+                            {item.description && (
+                              <p className="text-sm text-gray-600 mt-1">{item.description}</p>
+                            )}
+                            <div className="flex items-center justify-between mt-2">
+                              <p className="text-sm font-semibold text-green-600">
+                                ${typeof item.price === 'number' ? item.price.toFixed(2) : item.price}
+                              </p>
+                              {item.createdAt && (
+                                <p className="text-xs text-gray-400">
+                                  Added: {new Date(item.createdAt).toLocaleDateString()}
+                                </p>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       ))}
                       <button
                         onClick={() => setShowCreateModal(true)}
-                        className="mt-4 bg-red-500 text-white px-6 py-2 rounded-md"
+                        className="w-full border-2 border-dashed border-gray-300 rounded-lg p-4 text-center text-gray-500 hover:border-gray-400 hover:text-gray-600 transition-colors"
                       >
-                        Add More Items
+                        + Add More Items
                       </button>
                     </div>
                   )}
@@ -692,31 +825,11 @@ export default function Home() {
         <MenuItemsModal
           items={items}
           setItems={setItems}
+          eventId={createdEventId}
+          onItemCreated={loadMenuItems} // Refresh items after creation
           onClose={async () => {
-            // Persist any newly added items to backend if event exists
-            if (!createdEventId) {
-              setShowCreateModal(false);
-              return;
-            }
-            try {
-              const promises = items.map((it) =>
-                createMenuItem({
-                  event_id: createdEventId,
-                  name: it.name,
-                  description: it.description,
-                  price: it.price,
-                  image_url: it.image,
-                })
-              );
-              const results = await Promise.all(promises);
-              const ok = results.every((r) => r.success);
-              if (ok) toast.success("Menu items saved");
-              else toast.error("Some items failed to save");
-            } catch (e: any) {
-              toast.error(e?.message || "Failed to save items");
-            } finally {
-              setShowCreateModal(false);
-            }
+            // Close the modal
+            setShowCreateModal(false);
           }}
         />
       )}

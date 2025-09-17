@@ -14,15 +14,21 @@ interface MenuItemsModalProps {
     onClose: () => void;
     items: Item[];
     setItems: React.Dispatch<React.SetStateAction<Item[]>>;
+    eventId?: string | number | null;
+    onItemCreated?: () => void; // Callback to refresh items
 }
 
-export default function MenuItemsModal({ onClose, items, setItems }: MenuItemsModalProps) {
+export default function MenuItemsModal({ onClose, items, setItems, eventId, onItemCreated }: MenuItemsModalProps) {
     const [showCreateItem, setShowCreateItem] = useState(false);
     const [selectedIds, setSelectedIds] = useState<number[]>([]);
 
     const handleAddItem = (item: Item) => {
         setItems((prev) => [...prev, { ...item, id: prev.length + 1 }]);
         setShowCreateItem(false);
+        // Trigger refresh of items from API if callback is provided
+        if (onItemCreated) {
+            onItemCreated();
+        }
     };
 
     const handleCheckboxChange = (id: number) => {
@@ -101,7 +107,11 @@ export default function MenuItemsModal({ onClose, items, setItems }: MenuItemsMo
             )}
 
             {showCreateItem && (
-                <CreateItemModal onBack={() => setShowCreateItem(false)} onCreate={handleAddItem} />
+                <CreateItemModal 
+                    onBack={() => setShowCreateItem(false)} 
+                    onCreate={handleAddItem}
+                    eventId={eventId}
+                />
             )}
         </>
     );
