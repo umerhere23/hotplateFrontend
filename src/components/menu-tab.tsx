@@ -5,6 +5,7 @@ import { Plus, Edit2, Trash2, Upload, X, Save, AlertCircle } from "lucide-react"
 import toast from "react-hot-toast"
 import { createMenuItem, updateMenuItem, deleteMenuItem, getMenuItems } from "@/services/api"
 import ImageUploader from "./image-uploader"
+import { OptionGroup, SpecialInstructions } from "@/types/menu-item"
 
 export interface MenuItem {
   id?: string | number
@@ -16,6 +17,9 @@ export interface MenuItem {
   category?: string
   is_available?: boolean
   sort_order?: number
+  option_groups?: OptionGroup[]
+  special_instructions?: SpecialInstructions
+  tax_rate?: number
 }
 
 interface MenuTabProps {
@@ -31,6 +35,9 @@ interface MenuItemFormData {
   image_url?: string
   category: string
   is_available: boolean
+  option_groups?: OptionGroup[]
+  special_instructions?: SpecialInstructions
+  tax_rate?: number
 }
 
 const MenuTab: React.FC<MenuTabProps> = ({ eventId, onMenuItemsChange, onContinue }) => {
@@ -44,6 +51,12 @@ const MenuTab: React.FC<MenuTabProps> = ({ eventId, onMenuItemsChange, onContinu
     image_url: "",
     category: "main",
     is_available: true,
+    option_groups: [],
+    special_instructions: {
+      allowCustomerNotes: false,
+      requireNote: false
+    },
+    tax_rate: 0,
   })
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -121,6 +134,9 @@ const MenuTab: React.FC<MenuTabProps> = ({ eventId, onMenuItemsChange, onContinu
         description: formData.description,
         price: Number(formData.price),
         image_url: formData.image_url || undefined,
+        option_groups: formData.option_groups,
+        special_instructions: formData.special_instructions,
+        tax_rate: formData.tax_rate,
       })
 
       if (response.success && response.data) {
@@ -133,6 +149,9 @@ const MenuTab: React.FC<MenuTabProps> = ({ eventId, onMenuItemsChange, onContinu
           image_url: formData.image_url || undefined,
           category: formData.category,
           is_available: formData.is_available,
+          option_groups: formData.option_groups,
+          special_instructions: formData.special_instructions,
+          tax_rate: formData.tax_rate,
         }
 
         setMenuItems(prev => [...prev, newItem])
@@ -146,6 +165,12 @@ const MenuTab: React.FC<MenuTabProps> = ({ eventId, onMenuItemsChange, onContinu
           image_url: "",
           category: "main",
           is_available: true,
+          option_groups: [],
+          special_instructions: {
+            allowCustomerNotes: false,
+            requireNote: false
+          },
+          tax_rate: 0,
         })
         setIsAddingItem(false)
         

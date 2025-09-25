@@ -177,6 +177,23 @@ export type MenuItemPayload = {
   description: string
   price: number
   image_url?: string
+  option_groups?: Array<{
+    id?: string | number
+    name: string
+    type: 'modifier' | 'variation'
+    options: Array<{
+      id?: string | number
+      name: string
+      priceAdjustment: number
+    }>
+    requireSelection: boolean
+    enableInventory: boolean
+  }>
+  special_instructions?: {
+    allowCustomerNotes: boolean
+    requireNote: boolean
+  }
+  tax_rate?: number
 }
 
 export async function createMenuItem(payload: MenuItemPayload): Promise<{
