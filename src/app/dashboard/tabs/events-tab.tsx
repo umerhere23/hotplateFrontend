@@ -30,6 +30,12 @@ interface Item {
 
 export default function Home() {
   const [items, setItems] = useState<Item[]>([]);
+  
+  // Debug log whenever items change
+  useEffect(() => {
+    console.log("Menu items state updated:", items);
+    console.log("Total items count:", items.length);
+  }, [items]);
   const [showForm, setShowForm] = useState(false);
   const [showDate, setShowDate] = useState(false);
   const [showTime, setShowTime] = useState(false);
@@ -58,6 +64,16 @@ export default function Home() {
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [createdEventId, setCreatedEventId] = useState<string | number | null>(null);
   const [hideFromStorefront, setHideFromStorefront] = useState<boolean>(false);
+
+  // Function to remove item from selected menu items
+  const removeMenuItem = (itemId: number) => {
+    console.log(`Removing menu item with ID: ${itemId}`);
+    setItems(prev => {
+      const updated = prev.filter(item => item.id !== itemId);
+      console.log(`Menu items after removal:`, updated);
+      return updated;
+    });
+  };
   const [checkoutTimeLimit, setCheckoutTimeLimit] = useState<number>(5);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -691,17 +707,17 @@ export default function Home() {
                   ) : (
                     <div className="space-y-3">
                       <div className="text-sm text-gray-600 mb-2">
-                        Selected items for this event:
+                        Selected items for this event: ({items.length} items)
                       </div>
-                      {items.map((item) => (
+                      {items.map((item, index) => (
                         <div
-                          key={item.id}
+                          key={`${item.id}-${index}`}
                           className={`flex items-center gap-4 border rounded-lg p-4 ${
-                            item.available ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'
+                            item.available !== false ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'
                           }`}
                         >
                           <img
-                            src={item.image || "/cake.png"}
+                            src={item.image || item.imageUrl || "/cake.png"}
                             alt={item.name}
                             className="w-16 h-16 rounded-lg object-cover"
                           />
@@ -709,11 +725,11 @@ export default function Home() {
                             <div className="flex items-center gap-2">
                               <h3 className="font-medium text-gray-900">{item.name}</h3>
                               <span className={`px-2 py-1 text-xs rounded-full ${
-                                item.available 
+                                item.available !== false
                                   ? 'bg-green-100 text-green-700' 
                                   : 'bg-gray-100 text-gray-700'
                               }`}>
-                                {item.available ? 'Available' : 'Unavailable'}
+                                {item.available !== false ? 'Available' : 'Unavailable'}
                               </span>
                             </div>
                             {item.description && (
@@ -723,11 +739,20 @@ export default function Home() {
                               <p className="text-sm font-semibold text-green-600">
                                 ${typeof item.price === 'number' ? item.price.toFixed(2) : item.price}
                               </p>
-                              {item.createdAt && (
-                                <p className="text-xs text-gray-400">
-                                  Added: {new Date(item.createdAt).toLocaleDateString()}
-                                </p>
-                              )}
+                              <div className="flex items-center gap-2">
+                                {item.createdAt && (
+                                  <p className="text-xs text-gray-400">
+                                    Added: {new Date(item.createdAt).toLocaleDateString()}
+                                  </p>
+                                )}
+                                <button
+                                  onClick={() => removeMenuItem(item.id)}
+                                  className="text-red-500 hover:text-red-700 text-xs px-2 py-1 rounded hover:bg-red-50"
+                                  title="Remove item"
+                                >
+                                  Remove
+                                </button>
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -744,8 +769,19 @@ export default function Home() {
 
                 {/* Bottom-right Save button */}
                 <button
-                  className="absolute bottom-4 right-4 px-6 py-2 rounded-md bg-gray-200 text-gray-500 cursor-not-allowed"
-                  disabled
+                  onClick={() => {
+                    if (items.length > 0) {
+                      console.log("Saving menu items and continuing...", items);
+                      toast.success(`Saved ${items.length} menu items successfully!`);
+                      setActiveTab("publish");
+                    }
+                  }}
+                  className={`absolute bottom-4 right-4 px-6 py-2 rounded-md ${
+                    items.length > 0
+                      ? "bg-red-500 text-white hover:bg-red-600 cursor-pointer"
+                      : "bg-gray-200 text-gray-500 cursor-not-allowed"
+                  }`}
+                  disabled={items.length === 0}
                 >
                   Save & Continue
                 </button>
@@ -755,7 +791,169 @@ export default function Home() {
 
 
             {activeTab === "publish" && (
-              <div className="text-sm text-gray-500">Publish content goes here...</div>
+              <div className="relative bg-white min-h-[500px] w-full p-6">
+                <div className="mb-6">
+                  <h2 className="text-lg font-semibold mb-6">Notifications</h2>
+                  
+                  {/* Settings Button */}
+                  <div className="flex justify-end mb-4">
+                    <button className="flex items-center gap-2 px-3 py-1 bg-gray-100 rounded-md text-sm text-gray-600 hover:bg-gray-200">
+                      <span>⚙️</span>
+                      Settings
+                    </button>
+                  </div>
+
+                  {/* Timeline */}
+                  <div className="space-y-6">
+                    {/* Now - Event Details Check */}
+                    <div className="flex items-start gap-4">
+                      <div className="flex flex-col items-center">
+                        <div className={`w-4 h-4 rounded-full ${eventName && eventDescription ? 'bg-green-500' : 'bg-gray-300'} flex-shrink-0`}></div>
+                        <div className="w-0.5 h-12 bg-gray-200"></div>
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`font-medium ${eventName && eventDescription ? 'text-green-600' : 'text-gray-400'}`}>
+                            {eventName && eventDescription ? '✓ Event Details Complete' : '○ Event Details Required'}
+                          </span>
+                          <span className="text-sm text-blue-600 font-medium">Now</span>
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Draft Notification */}
+                    <div className="bg-gray-50 border rounded-lg p-4 mb-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="font-medium text-gray-900 mb-1">Event is ready to publish!</h4>
+                          <div className="text-sm text-gray-600">
+                            {new Date(Date.now() + 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { 
+                              month: 'short', 
+                              day: 'numeric', 
+                              hour: 'numeric', 
+                              minute: '2-digit', 
+                              hour12: true 
+                            })}
+                          </div>
+                        </div>
+                        <span className="px-2 py-1 bg-gray-200 text-gray-600 text-xs rounded">Draft</span>
+                      </div>
+                    </div>
+
+                    {/* Menu Items Check */}
+                    <div className="flex items-start gap-4">
+                      <div className="flex flex-col items-center">
+                        <div className={`w-4 h-4 rounded-full ${items.length > 0 ? 'bg-green-500' : 'bg-gray-300'} flex-shrink-0`}></div>
+                        <div className="w-0.5 h-12 bg-gray-200"></div>
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`font-medium ${items.length > 0 ? 'text-green-600' : 'text-gray-400'}`}>
+                            {items.length > 0 ? `✓ Menu Items (${items.length} items)` : '○ Menu Items Required'}
+                          </span>
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Pickup Windows Check */}
+                    <div className="flex items-start gap-4">
+                      <div className="flex flex-col items-center">
+                        <div className={`w-4 h-4 rounded-full ${pickupWindows.length > 0 ? 'bg-green-500' : 'bg-gray-300'} flex-shrink-0`}></div>
+                        <div className="w-0.5 h-12 bg-gray-200"></div>
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`font-medium ${pickupWindows.length > 0 ? 'text-green-600' : 'text-gray-400'}`}>
+                            {pickupWindows.length > 0 ? `✓ Pickup Windows (${pickupWindows.length} windows)` : '○ Pickup Windows Required'}
+                          </span>
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Add Notification Button */}
+                    <button className="w-full bg-gray-100 text-gray-600 py-3 px-4 rounded-lg hover:bg-gray-200 transition-colors">
+                      Add notification
+                    </button>
+
+                    {/* Orders Close Timeline */}
+                    <div className="flex items-start gap-4">
+                      <div className="flex flex-col items-center">
+                        <div className="w-4 h-4 rounded-full bg-gray-300 flex-shrink-0"></div>
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-medium text-gray-600">📋 Orders close</span>
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { 
+                            month: 'short', 
+                            day: 'numeric', 
+                            hour: 'numeric', 
+                            minute: '2-digit', 
+                            hour12: true 
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="mt-8 space-y-3">
+                    {/* Publish Button */}
+                    <button
+                      onClick={() => {
+                        const canPublish = eventName && eventDescription && items.length > 0 && pickupWindows.length > 0;
+                        if (canPublish) {
+                          toast.success("Event published successfully!");
+                          console.log("Publishing event with:", {
+                            eventName,
+                            eventDescription,
+                            menuItems: items,
+                            pickupWindows
+                          });
+                        } else {
+                          toast.error("Please complete all required sections before publishing");
+                        }
+                      }}
+                      className={`w-full py-3 px-4 rounded-lg font-medium transition-colors ${
+                        eventName && eventDescription && items.length > 0 && pickupWindows.length > 0
+                          ? 'bg-green-500 hover:bg-green-600 text-white'
+                          : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                      }`}
+                      disabled={!(eventName && eventDescription && items.length > 0 && pickupWindows.length > 0)}
+                    >
+                      Publish Event
+                    </button>
+
+                    {/* Send Email Notifications */}
+                    <button className="w-full py-3 px-4 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
+                      Send Email Notifications
+                    </button>
+
+                    {/* Add Discount Code */}
+                    <div className="border border-gray-300 rounded-lg p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="font-medium text-gray-900">Add a discount code</h4>
+                          <p className="text-sm text-gray-600">Optionally add one or more discount codes for this event</p>
+                        </div>
+                        <button className="bg-black text-white px-4 py-2 rounded-md text-sm hover:bg-gray-800">
+                          + Add
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
         </>

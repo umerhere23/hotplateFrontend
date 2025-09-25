@@ -236,8 +236,15 @@ export async function getMenuItems(
     const { ok, data } = await api.get<any>(`/events/${eventId}/menu-items`, { 
       pointName: "getMenuItems" 
     })
-    if (ok && Array.isArray((data as any)?.data)) {
-      return (data as any).data
+    console.log("getMenuItems API response:", { ok, data });
+    
+    if (ok && data) {
+      // Handle both response formats:
+      // 1. Direct array: data = [...]
+      // 2. Nested format: data = { data: [...] }
+      const items = Array.isArray(data) ? data : Array.isArray(data.data) ? data.data : [];
+      console.log("Extracted items:", items);
+      return items;
     }
     return []
   } catch (error) {
