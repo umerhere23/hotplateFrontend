@@ -160,22 +160,16 @@ export default function Home() {
   };
 
   const loadPickupWindows = async () => {
-    console.log("loadPickupWindows called with createdEventId:", createdEventId);
     if (!createdEventId) {
-      console.log("No event ID available for loading pickup windows - EARLY RETURN")
       return
     }
     
-    console.log(`Loading pickup windows for event ID: ${createdEventId}`)
     try {
       setLoadingPickupWindows(true)
-      console.log("Making API GET request to:", `/events/${createdEventId}/pickup-windows`);
       const { ok, data, message } = await api.get<any>(`/events/${createdEventId}/pickup-windows`, { pointName: "getPickupWindows" })
-      console.log("Pickup windows API response:", { ok, data, message })
       
       if (!ok) throw new Error(message || "Failed to fetch pickup windows")
       const items = Array.isArray(data) ? data : (data?.data ?? [])
-      console.log("Processed pickup windows:", items)
       setPickupWindows(items)
     } catch (err) {
       console.error("Failed to load pickup windows", err)
@@ -1187,7 +1181,6 @@ export default function Home() {
         eventId={createdEventId}
     // @ts-ignore handler to create a pickup window
     onSavePickup={async (data) => {
-          console.log("onSavePickup called with data:", data);
           if (!createdEventId) {
             toast.error("Create and save event first");
             return { success: false };
@@ -1208,26 +1201,16 @@ export default function Home() {
               time_zone: "GMT+8",
             }
           );
-          console.log("Full response from createPickupWindow:", res);
-          console.log("Response success:", res.success);
-          if(res.success) console.log("successss")
           if (res.success) toast.success("Pickup window saved");
           else toast.error(res.message || "Failed to save pickup window");
           // Refresh list of pickup windows so newly created window shows up
           if (res.success) {
             // Try to extract new window id from response
             const newId = res.data?.id ?? res.data?.data?.id ?? null;
-            console.log("Pickup window saved successfully, new ID:", newId);
             // Reload windows then mark the newly created one as selected
             try {
-              console.log("Starting to reload pickup windows...");
-              console.log("Current createdEventId:", createdEventId);
               await loadPickupWindows();
-              console.log("Pickup windows reloaded successfully");
-              if (newId !== null) {
-                console.log("Setting selected pickup window ID to:", newId);
-                setSelectedPickupWindowId(newId);
-              }
+              if (newId !== null) setSelectedPickupWindowId(newId);
             } catch (error) {
               console.error("Failed to reload pickup windows after save:", error);
               toast.error("Pickup window saved but failed to refresh the list");
