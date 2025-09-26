@@ -11,7 +11,8 @@ import MenuItemsModal from "@/app/modals/additem-modal";
 import PickupModalFlow from "@/app/modals/create-pickupmodal";
 import toast from "react-hot-toast";
 import api from "@/lib/api-client";
-import { createEvent, createMenuItem, createPickupWindow, updateEvent, getMenuItems } from "@/services/api";
+import { createEvent, createMenuItem, createPickupWindow, updateEvent, getMenuItems, getEvents } from "@/services/api";
+import type { Event as ApiEvent } from "@/services/api";
 
 interface Item {
   id: number;
@@ -79,6 +80,8 @@ export default function Home() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [errors, setErrors] = useState<{ name?: string; desc?: string; date?: string; time?: string; image?: string }>({});
+  const [draftEvents, setDraftEvents] = useState<ApiEvent[]>([]);
+  const [showDrafts, setShowDrafts] = useState<boolean>(true);
 
   const times = [
     "09:00 AM",
@@ -104,6 +107,33 @@ export default function Home() {
       console.error("Failed to load pickup locations", err)
     }
   }
+
+  const loadDrafts = async () => {
+    try {
+      const all = await getEvents();
+      const drafts = all.filter((e) => (e.status as any) === "draft");
+      setDraftEvents(drafts);
+    } catch {}
+  };
+
+  const loadEventDetails = async (eventId: string | number) => {
+    try {
+      const { ok, data } = await api.get<any>(`/events/${eventId}`, { pointName: "getEventDetailsForEditor" });
+      if (!ok || !data) return;
+      const ev = Array.isArray(data) ? data[0] : data;
+      setEventName(ev.title || "");
+      setEventDescription(ev.description || "");
+      if (ev.pre_order_date) setSelectedDate(new Date(ev.pre_order_date));
+      if (ev.pre_order_time) setSelectedTime(ev.pre_order_time);
+      const opt = ev.order_close_data?.option || ev.orderCloseData?.option || "last";
+      const mapped = opt === "last-window" ? "last" : opt === "time-before" ? "before" : opt === "specific-time" ? "specific" : opt;
+      setSelectedCloseOption(mapped);
+      setWalkUpOrdering(!!ev.walk_up_ordering);
+      setHideOpenTime(!!ev.hide_open_time);
+      setHideFromStorefront(!!ev.hide_from_storefront);
+      if (ev.default_pickup_window_id) setSelectedPickupWindowId(ev.default_pickup_window_id);
+    } catch {}
+  };
 
   const loadPickupWindows = async () => {
     if (!createdEventId) {
@@ -181,6 +211,12 @@ export default function Home() {
     }
   }, [activeTab, createdEventId])
 
+  useEffect(() => {
+    if (!showForm) {
+      loadDrafts()
+    }
+  }, [showForm])
+
   // Also load pickup windows immediately when an event is created
   useEffect(() => {
     if (createdEventId) {
@@ -231,26 +267,37 @@ export default function Home() {
           <div className="mb-8">
             <div className="flex items-center justify-between mb-2">
               <h3 className="font-medium">
-                Drafts <span className="text-gray-500">• 1</span>
+                Drafts <span className="text-gray-500">• {draftEvents.length}</span>
               </h3>
-              <button className="text-xs border rounded px-2 py-1 text-gray-600 hover:bg-gray-100">
-                Hide
+              <button onClick={() => setShowDrafts((v) => !v)} className="text-xs border rounded px-2 py-1 text-gray-600 hover:bg-gray-100">
+                {showDrafts ? "Hide" : "Show"}
               </button>
             </div>
-
-            {/* Draft Card */}
-            <div className="w-40 border rounded-lg shadow-sm p-3 bg-white">
-              <div className="flex justify-between items-center mb-2">
-                <h4 className="text-sm font-medium">New Event</h4>
-                <span className="text-xs bg-gray-100 px-2 py-0.5 rounded">
-                  Draft
-                </span>
+            {showDrafts && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                {draftEvents.map((d) => (
+                  <button
+                    key={d.id}
+                    onClick={async () => {
+                      setShowForm(true);
+                      setCreatedEventId(d.id);
+                      await loadEventDetails(d.id);
+                    }}
+                    className="w-full border rounded-lg shadow-sm p-3 bg-white text-left hover:border-gray-300"
+                  >
+                    <div className="flex justify-between items-center mb-2">
+                      <h4 className="text-sm font-medium truncate" title={d.title}>{d.title || "Untitled"}</h4>
+                      <span className="text-xs bg-gray-100 px-2 py-0.5 rounded">Draft</span>
+                    </div>
+                    <p className="text-xs text-gray-500 mb-2">{d.pre_order_date ? new Date(d.pre_order_date).toLocaleDateString() : "No date"}</p>
+                    <span className="text-xs border px-2 py-0.5 rounded bg-gray-50">Continue</span>
+                  </button>
+                ))}
+                {draftEvents.length === 0 && (
+                  <div className="text-xs text-gray-500">No drafts yet</div>
+                )}
               </div>
-              <p className="text-xs text-gray-500 mb-2">No locations</p>
-              <span className="text-xs border px-2 py-0.5 rounded bg-gray-50">
-                Pickup
-              </span>
-            </div>
+            )}
           </div>
 
           {/* Complete Section */}
@@ -499,6 +546,77 @@ export default function Home() {
                   >
                     Advanced options
                   </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={async () => {
+                        const newErrors: typeof errors = {};
+                        if (!eventName.trim()) newErrors.name = "Event name is required";
+                        if (eventName.trim().length > 150) newErrors.name = "Max 150 characters";
+                        if (eventDescription.length > 500) newErrors.desc = "Max 500 characters";
+                        if (!selectedDate) newErrors.date = "Please select a pre-order open date";
+                        if (selectedDate) {
+                          const today = new Date();
+                          today.setHours(0,0,0,0);
+                          const picked = new Date(selectedDate);
+                          picked.setHours(0,0,0,0);
+                          if (picked < today) newErrors.date = "Date cannot be in the past";
+                        }
+                        if (!selectedTime) newErrors.time = "Please select a pre-order open time";
+                        setErrors(newErrors);
+                        if (Object.keys(newErrors).length) return;
+                        try {
+                          setIsSaving(true);
+                          if (!createdEventId) {
+                            const form = new FormData();
+                            form.append("title", eventName.trim());
+                            form.append("description", eventDescription.trim());
+                            form.append("pre_order_date", format(selectedDate!, "yyyy-MM-dd"));
+                            form.append("pre_order_time", selectedTime);
+                            form.append("order_close_data", JSON.stringify({ option: selectedCloseOption }));
+                            form.append("walk_up_ordering", String(walkUpOrdering ? 1 : 0));
+                            form.append("walk_up_ordering_option", "pickup-windows");
+                            form.append("hide_open_time", String(hideOpenTime ? 1 : 0));
+                            form.append("disable_drop_notifications", "0");
+                            form.append("hide_from_storefront", String(hideFromStorefront ? 1 : 0));
+                            form.append("status", "draft");
+                            if (imageFile) form.append("image", imageFile);
+                            const res = await createEvent(form);
+                            if (!res.success) {
+                              toast.error(res.message || "Failed to save event");
+                              return;
+                            }
+                            const newId = res.data?.id ?? res.data?.data?.id ?? null;
+                            if (newId !== null) setCreatedEventId(newId);
+                          } else {
+                            const res = await updateEvent(createdEventId, {
+                              title: eventName.trim(),
+                              description: eventDescription.trim(),
+                              pre_order_date: format(selectedDate!, "yyyy-MM-dd"),
+                              pre_order_time: selectedTime,
+                              order_close_data: { option: selectedCloseOption } as any,
+                              walk_up_ordering: walkUpOrdering,
+                              walk_up_ordering_option: "pickup-windows" as any,
+                              hide_open_time: hideOpenTime,
+                              hide_from_storefront: hideFromStorefront,
+                              status: "draft",
+                            } as any);
+                            if (!res.success) {
+                              toast.error(res.message || "Failed to save event");
+                              return;
+                            }
+                          }
+                          toast.success("Saved");
+                        } catch (e: any) {
+                          toast.error(e?.message || "Something went wrong");
+                        } finally {
+                          setIsSaving(false);
+                        }
+                      }}
+                      className={`bg-gray-200 text-sm font-medium px-4 py-2 rounded-md ${isSaving ? "opacity-70" : "hover:bg-gray-300"}`}
+                      disabled={isSaving}
+                    >
+                      {isSaving ? "Saving..." : "Save"}
+                    </button>
                   <button
                     onClick={async () => {
                       const newErrors: typeof errors = {};
@@ -518,27 +636,47 @@ export default function Home() {
                       if (Object.keys(newErrors).length) return;
                       try {
                         setIsSaving(true);
-                        const form = new FormData();
-                        form.append("title", eventName.trim());
-                        form.append("description", eventDescription.trim());
-                        form.append("pre_order_date", format(selectedDate!, "yyyy-MM-dd"));
-                        form.append("pre_order_time", selectedTime);
-                        form.append("order_close_data", JSON.stringify({ option: selectedCloseOption }));
-                        form.append("walk_up_ordering", String(walkUpOrdering ? 1 : 0));
-                        form.append("walk_up_ordering_option", "pickup-windows");
-                        form.append("hide_open_time", String(hideOpenTime ? 1 : 0));
-                        form.append("disable_drop_notifications", "0");
-                        form.append("hide_from_storefront", "0");
-                        form.append("status", "draft");
-                        if (imageFile) form.append("image", imageFile);
-                        const res = await createEvent(form);
-                        if (!res.success) {
-                          toast.error(res.message || "Failed to create event");
-                          return;
+                        if (!createdEventId) {
+                          const form = new FormData();
+                          form.append("title", eventName.trim());
+                          form.append("description", eventDescription.trim());
+                          form.append("pre_order_date", format(selectedDate!, "yyyy-MM-dd"));
+                          form.append("pre_order_time", selectedTime);
+                          form.append("order_close_data", JSON.stringify({ option: selectedCloseOption }));
+                          form.append("walk_up_ordering", String(walkUpOrdering ? 1 : 0));
+                          form.append("walk_up_ordering_option", "pickup-windows");
+                          form.append("hide_open_time", String(hideOpenTime ? 1 : 0));
+                          form.append("disable_drop_notifications", "0");
+                          form.append("hide_from_storefront", String(hideFromStorefront ? 1 : 0));
+                          form.append("status", "draft");
+                          if (imageFile) form.append("image", imageFile);
+                          const res = await createEvent(form);
+                          if (!res.success) {
+                            toast.error(res.message || "Failed to create event");
+                            return;
+                          }
+                          const newId = res.data?.id ?? res.data?.data?.id ?? null;
+                          if (newId !== null) setCreatedEventId(newId);
+                          toast.success("Event created");
+                        } else {
+                          const res = await updateEvent(createdEventId, {
+                            title: eventName.trim(),
+                            description: eventDescription.trim(),
+                            pre_order_date: format(selectedDate!, "yyyy-MM-dd"),
+                            pre_order_time: selectedTime,
+                            order_close_data: { option: selectedCloseOption } as any,
+                            walk_up_ordering: walkUpOrdering,
+                            walk_up_ordering_option: "pickup-windows" as any,
+                            hide_open_time: hideOpenTime,
+                            hide_from_storefront: hideFromStorefront,
+                            status: "draft",
+                          } as any);
+                          if (!res.success) {
+                            toast.error(res.message || "Failed to save event");
+                            return;
+                          }
+                          toast.success("Event updated");
                         }
-                        const newId = res.data?.id ?? res.data?.data?.id ?? null;
-                        if (newId !== null) setCreatedEventId(newId);
-                        toast.success("Event created");
                         setActiveTab("pickup");
                       } catch (e: any) {
                         toast.error(e?.message || "Something went wrong");
@@ -551,6 +689,7 @@ export default function Home() {
                   >
                     {isSaving ? "Saving..." : "Save & Continue"}
                   </button>
+                  </div>
                 </div>
               </div>
 
@@ -634,6 +773,41 @@ export default function Home() {
                   </select>
                 </div>
                 <div>
+                  <button
+                    onClick={async () => {
+                      if (!createdEventId) {
+                        toast.error('Please save the event first');
+                        return;
+                      }
+                      if (!selectedPickupWindowId) {
+                        toast.error('Select a pickup window to save');
+                        return;
+                      }
+                      try {
+                        setIsSaving(true);
+                        const selectedWindow = pickupWindows.find(pw => String(pw.id) === String(selectedPickupWindowId));
+                        const locationId = selectedWindow?.pickupLocationId || selectedWindow?.pickupLocation?.id || null;
+                        const resSave = await updateEvent(createdEventId, { 
+                          default_pickup_window_id: selectedPickupWindowId, 
+                          default_pickup_location_id: locationId,
+                          time_slots_option: timeSlotsOption
+                        } as any);
+                        if (!resSave.success) {
+                          toast.error(resSave.message || 'Failed to save pickup selection');
+                          return;
+                        }
+                        toast.success('Saved');
+                      } catch (err: any) {
+                        toast.error(err?.message || 'Failed to save pickup selection');
+                      } finally {
+                        setIsSaving(false);
+                      }
+                    }}
+                    disabled={selectedPickupWindowId == null}
+                    className={`w-full text-sm font-medium px-4 py-2 rounded-md mb-2 ${selectedPickupWindowId != null ? 'bg-gray-200 text-gray-900 hover:bg-gray-300' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
+                  >
+                    {isSaving ? 'Saving...' : 'Save'}
+                  </button>
                   <button
                     onClick={async () => {
                       if (!createdEventId) {

@@ -42,31 +42,43 @@ export type Event = {
 
 export async function getEvents(): Promise<Event[]> {
   try {
-    // For development/testing, return mock data
-    // Remove this condition when connecting to your real API
-    // if (process.env.NODE_ENV === "development" && !localStorage.getItem("auth_token")) {
-    //   // Simulate API delay
-    //   await new Promise((resolve) => setTimeout(resolve, 1000))
-    //   console.log("Using mock data for events")
-    //   return mockEvents
-    // }
-
     const { ok, data } = await api.get<any>("/events", { pointName: "getEvents" })
-    if (ok && Array.isArray((data as any)?.data)) {
-      // Map the API response to match our Event type
-      return (data as any).data.map((event: any) => ({
-        ...event,
-        // Convert id to string if needed for consistency
-        id: event.id.toString(),
-        // Map status for display purposes if needed
-        status: event.status || mapEventStatus(event.status, event.pre_order_date),
-      }))
-    }
+    if (!ok) return []
 
-    return []
+    const items: any[] = Array.isArray(data)
+      ? data
+      : Array.isArray((data as any)?.data)
+      ? (data as any).data
+      : []
+
+    return items.map((e: any) => {
+      const preOrderDate = e.pre_order_date ?? e.preOrderDate ?? ""
+      return {
+        id: e.id?.toString?.() ?? String(e.id),
+        user_id: e.user_id ?? e.userId,
+        title: e.title ?? "",
+        description: e.description ?? "",
+        image_path: e.image_path ?? e.imagePath ?? null,
+        image_url: e.image_url ?? e.imageUrl ?? null,
+        pre_order_date: preOrderDate,
+        pre_order_time: e.pre_order_time ?? e.preOrderTime ?? "",
+        order_close_data: e.order_close_data ?? e.orderCloseData ?? { option: "last" },
+        walk_up_ordering: e.walk_up_ordering ?? e.walkUpOrdering ?? false,
+        walk_up_ordering_option: e.walk_up_ordering_option ?? e.walkUpOrderingOption ?? "pickup-windows",
+        hide_open_time: e.hide_open_time ?? e.hideOpenTime ?? false,
+        disable_drop_notifications: e.disable_drop_notifications ?? e.disableDropNotifications ?? false,
+        hide_from_storefront: e.hide_from_storefront ?? e.hideFromStorefront ?? false,
+        checkout_time_limit: e.checkout_time_limit ?? e.checkoutTimeLimit,
+        default_pickup_window_id: e.default_pickup_window_id ?? e.defaultPickupWindowId,
+        default_pickup_location_id: e.default_pickup_location_id ?? e.defaultPickupLocationId,
+        time_slots_option: e.time_slots_option ?? e.timeSlotsOption,
+        status: e.status ?? mapEventStatus(e.status, preOrderDate),
+        created_at: e.created_at ?? e.createdAt,
+        updated_at: e.updated_at ?? e.updatedAt,
+      } as Event
+    })
   } catch (error) {
     console.error("Error fetching events:", error)
-    // For development, return mock data even if there's an error
     if (process.env.NODE_ENV === "development") {
       return mockEvents
     }
