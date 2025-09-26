@@ -121,29 +121,55 @@ export default function Home() {
       const { ok, data } = await api.get<any>(`/events/${eventId}`, { pointName: "getEventDetailsForEditor" });
       if (!ok || !data) return;
       const ev = Array.isArray(data) ? data[0] : data;
+      
+      // Basic fields
       setEventName(ev.title || "");
       setEventDescription(ev.description || "");
-      if (ev.pre_order_date) setSelectedDate(new Date(ev.pre_order_date));
-      if (ev.pre_order_time) setSelectedTime(ev.pre_order_time);
-      const opt = ev.order_close_data?.option || ev.orderCloseData?.option || "last";
+      
+      const preOrderDate = ev.preOrderDate || ev.pre_order_date;
+      const preOrderTime = ev.preOrderTime || ev.pre_order_time;
+      if (preOrderDate) setSelectedDate(new Date(preOrderDate));
+      if (preOrderTime) setSelectedTime(preOrderTime);
+      
+      let orderCloseData;
+      if (typeof ev.orderCloseData === 'string') {
+        try {
+          orderCloseData = JSON.parse(ev.orderCloseData);
+        } catch {
+          orderCloseData = { option: "last" };
+        }
+      } else {
+        orderCloseData = ev.orderCloseData || ev.order_close_data || { option: "last" };
+      }
+      const opt = orderCloseData?.option || "last";
       const mapped = opt === "last-window" ? "last" : opt === "time-before" ? "before" : opt === "specific-time" ? "specific" : opt;
       setSelectedCloseOption(mapped);
-      setWalkUpOrdering(!!ev.walk_up_ordering);
-      setHideOpenTime(!!ev.hide_open_time);
-      setHideFromStorefront(!!ev.hide_from_storefront);
-      if (ev.default_pickup_window_id) setSelectedPickupWindowId(ev.default_pickup_window_id);
-    } catch {}
+      
+      // Toggle switches - handle both camelCase and snake_case
+      setWalkUpOrdering(!!(ev.walkUpOrdering || ev.walk_up_ordering));
+      setHideOpenTime(!!(ev.hideOpenTime || ev.hide_open_time));
+      setHideFromStorefront(!!(ev.hideFromStorefront || ev.hide_from_storefront));
+      
+      // Pickup window selection
+      if (ev.defaultPickupWindowId || ev.default_pickup_window_id) {
+        setSelectedPickupWindowId(ev.defaultPickupWindowId || ev.default_pickup_window_id);
+      }
+    } catch (error) {
+      console.error("Error loading event details:", error);
+    }
   };
 
   const loadPickupWindows = async () => {
+    console.log("loadPickupWindows called with createdEventId:", createdEventId);
     if (!createdEventId) {
-      console.log("No event ID available for loading pickup windows")
+      console.log("No event ID available for loading pickup windows - EARLY RETURN")
       return
     }
     
     console.log(`Loading pickup windows for event ID: ${createdEventId}`)
     try {
       setLoadingPickupWindows(true)
+      console.log("Making API GET request to:", `/events/${createdEventId}/pickup-windows`);
       const { ok, data, message } = await api.get<any>(`/events/${createdEventId}/pickup-windows`, { pointName: "getPickupWindows" })
       console.log("Pickup windows API response:", { ok, data, message })
       
@@ -797,6 +823,7 @@ export default function Home() {
                           return;
                         }
                         toast.success('Saved');
+                        await loadPickupWindows();
                       } catch (err: any) {
                         toast.error(err?.message || 'Failed to save pickup selection');
                       } finally {
@@ -835,6 +862,7 @@ export default function Home() {
                           return;
                         }
                         toast.success('Pickup window selected');
+                        await loadPickupWindows();
                         // Proceed to next tab (menu)
                         setActiveTab('menu');
                       } catch (err: any) {
@@ -1158,32 +1186,52 @@ export default function Home() {
         // @ts-ignore pass event id through global object for the jsx modal (jsx file)
         eventId={createdEventId}
     // @ts-ignore handler to create a pickup window
-    onSavePickup={async (data: { date: Date; start: string; end: string; pickup_location_id: string | number }) => {
+    onSavePickup={async (data) => {
+          console.log("onSavePickup called with data:", data);
           if (!createdEventId) {
             toast.error("Create and save event first");
             return { success: false };
           }
+          
+          // Handle different payload formats from modal vs other sources
+          const pickupDate = data.date ? format(data.date, "yyyy-MM-dd") : data.pickup_date;
+          const startTime = data.start || data.start_time;
+          const endTime = data.end || data.end_time;
+          
           const res = await createPickupWindow(
             createdEventId,
             {
-              pickup_date: format(data.date, "yyyy-MM-dd"),
-              start_time: data.start,
-      end_time: data.end,
-      pickup_location_id: data.pickup_location_id,
+              pickup_date: pickupDate,
+              start_time: startTime,
+              end_time: endTime,
+              pickup_location_id: data.pickup_location_id,
               time_zone: "GMT+8",
             }
           );
+          console.log("Full response from createPickupWindow:", res);
+          console.log("Response success:", res.success);
+          if(res.success) console.log("successss")
           if (res.success) toast.success("Pickup window saved");
           else toast.error(res.message || "Failed to save pickup window");
           // Refresh list of pickup windows so newly created window shows up
           if (res.success) {
             // Try to extract new window id from response
             const newId = res.data?.id ?? res.data?.data?.id ?? null;
+            console.log("Pickup window saved successfully, new ID:", newId);
             // Reload windows then mark the newly created one as selected
             try {
+              console.log("Starting to reload pickup windows...");
+              console.log("Current createdEventId:", createdEventId);
               await loadPickupWindows();
-            } catch {}
-            if (newId !== null) setSelectedPickupWindowId(newId);
+              console.log("Pickup windows reloaded successfully");
+              if (newId !== null) {
+                console.log("Setting selected pickup window ID to:", newId);
+                setSelectedPickupWindowId(newId);
+              }
+            } catch (error) {
+              console.error("Failed to reload pickup windows after save:", error);
+              toast.error("Pickup window saved but failed to refresh the list");
+            }
           }
           return res;
         }}
