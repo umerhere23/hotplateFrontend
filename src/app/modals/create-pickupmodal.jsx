@@ -124,10 +124,10 @@ export default function PickupModalFlow({ isOpen, onClose, eventId, onSavePickup
                     };
 
                     let res = { success: false };
-                    if (eventId) {
-                      res = await createPickupWindow(eventId, payload);
-                    } else if (onSavePickup) {
+                    if (onSavePickup) {
                       res = await onSavePickup(payload);
+                    } else if (eventId) {
+                      res = await createPickupWindow(eventId, payload);
                     }
 
                   if (res?.success) closeModal();
