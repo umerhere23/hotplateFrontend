@@ -14,8 +14,8 @@ export default function ThemeProviderWrapper({ children }: { children: React.Rea
   if (!isMounted) return null;
 
   return (
-    <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
+    <ThemeProvider defaultTheme="light">
       {children}
     </ThemeProvider>
-  );
+  )
 }

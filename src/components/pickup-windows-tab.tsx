@@ -7,11 +7,13 @@ import { createPortal } from "react-dom"
 import { Info, Plus, MoreVertical, Clock, MapPin, Calendar, Trash2, Edit } from "lucide-react"
 import { useRouter } from "next/navigation"
 import toast from "react-hot-toast"
+import api from "@/lib/api-client"
 import PickupWindowModal from "./pickup-window-modal"
 import type { PickupWindow, PickupLocation } from "@/types/pickup-types"
 
 interface PickupWindowsTabProps {
   eventId: string
+  onContinue?: () => void
 }
 
 // Dropdown menu component that uses portal to render outside of any container constraints
@@ -26,7 +28,7 @@ function DropdownMenu({
   onClose: () => void
   onEdit: () => void
   onDelete: () => void
-  buttonRef: React.RefObject<HTMLButtonElement>
+  buttonRef: React.RefObject<HTMLButtonElement | null>
 }) {
   const [position, setPosition] = useState({ top: 0, left: 0, right: 0 })
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -109,7 +111,7 @@ function DropdownMenu({
   )
 }
 
-export default function PickupWindowsTab({ eventId }: PickupWindowsTabProps) {
+export default function PickupWindowsTab({ eventId, onContinue }: PickupWindowsTabProps) {
   const router = useRouter()
   const [pickupWindows, setPickupWindows] = useState<PickupWindow[]>([])
   const [pickupLocations, setPickupLocations] = useState<PickupLocation[]>([])
@@ -122,9 +124,10 @@ export default function PickupWindowsTab({ eventId }: PickupWindowsTabProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [windowToDelete, setWindowToDelete] = useState<string | number | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
-  const menuButtonRefs = useRef<{ [key: string]: React.RefObject<HTMLButtonElement> }>({})
+  const [selectedLocation, setSelectedLocation] = useState<PickupLocation | null>(null)
+  const menuButtonRefs = useRef<{ [key: string]: React.RefObject<HTMLButtonElement | null> }>({})
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api"
+  // Using shared API client for auth + base URL
 
   useEffect(() => {
     if (eventId) {
@@ -146,27 +149,10 @@ export default function PickupWindowsTab({ eventId }: PickupWindowsTabProps) {
 
   const loadPickupLocations = async () => {
     try {
-      // Get the auth token from localStorage
-      const token = localStorage.getItem("auth_token")
-
-      if (!token) {
-        throw new Error("No authentication token found")
-      }
-
-      const response = await fetch(`${API_URL}/pickup-locations`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      })
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch pickup locations")
-      }
-
-      const data = await response.json()
-      console.log("Pickup locations data:", data)
-      setPickupLocations(data.data || [])
+  const { ok, data, message } = await api.get<any>(`/pickup-locations`, { pointName: "getPickupLocations" })
+  if (!ok) throw new Error(message || "Failed to fetch pickup locations")
+  console.log("Pickup locations data:", data)
+  setPickupLocations(Array.isArray(data) ? (data as any) : [])
     } catch (error) {
       console.error("Error loading pickup locations:", error)
     }
@@ -176,29 +162,13 @@ export default function PickupWindowsTab({ eventId }: PickupWindowsTabProps) {
     try {
       setLoading(true)
 
-      // Get the auth token from localStorage
-      const token = localStorage.getItem("auth_token")
-
-      if (!token) {
-        throw new Error("No authentication token found")
-      }
-
-      const response = await fetch(`${API_URL}/events/${eventId}/pickup-windows`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
+      const { ok, data, message } = await api.get<any>(`/events/${eventId}/pickup-windows`, {
+        pointName: "getPickupWindows",
       })
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch pickup windows")
-      }
-
-      const data = await response.json()
+      if (!ok) throw new Error(message || "Failed to fetch pickup windows")
       console.log("Pickup windows data:", data)
 
-      // Process the pickup windows data
-      const windows = data.data || []
+      const windows = Array.isArray(data) ? (data as any) : []
 
       // Ensure each window has the correct location data
       const processedWindows = windows.map((window: PickupWindow) => {
@@ -217,6 +187,14 @@ export default function PickupWindowsTab({ eventId }: PickupWindowsTabProps) {
       })
 
       setPickupWindows(processedWindows)
+      
+      // Update selected location to the most recent pickup window's location
+      if (processedWindows.length > 0) {
+        const mostRecentWindow = processedWindows[processedWindows.length - 1]
+        if (mostRecentWindow.pickupLocation) {
+          setSelectedLocation(mostRecentWindow.pickupLocation)
+        }
+      }
     } catch (error) {
       console.error("Error loading pickup windows:", error)
       setError(error instanceof Error ? error.message : "Failed to load pickup windows")
@@ -227,28 +205,10 @@ export default function PickupWindowsTab({ eventId }: PickupWindowsTabProps) {
 
   const loadEventDetails = async () => {
     try {
-      // Get the auth token from localStorage
-      const token = localStorage.getItem("auth_token")
-
-      if (!token) {
-        throw new Error("No authentication token found")
-      }
-
-      const response = await fetch(`${API_URL}/events/${eventId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      })
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch event details")
-      }
-
-      const data = await response.json()
-      if (data.data && data.data.time_slots_option) {
-        setTimeSlotsOption(data.data.time_slots_option)
-      }
+  const { ok, data, message } = await api.get<any>(`/events/${eventId}`, { pointName: "getEventDetails" })
+  if (!ok) throw new Error(message || "Failed to fetch event details")
+  const event = data as any
+  if (event && event.time_slots_option) setTimeSlotsOption(event.time_slots_option)
     } catch (error) {
       console.error("Error loading event details:", error)
     }
@@ -277,24 +237,10 @@ export default function PickupWindowsTab({ eventId }: PickupWindowsTabProps) {
     try {
       setIsDeleting(true)
 
-      // Get the auth token from localStorage
-      const token = localStorage.getItem("auth_token")
-
-      if (!token) {
-        throw new Error("No authentication token found")
-      }
-
-      const response = await fetch(`${API_URL}/events/${eventId}/pickup-windows/${windowToDelete}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
+      const { ok, message } = await api.delete(`/events/${eventId}/pickup-windows/${windowToDelete}`, {
+        pointName: "deletePickupWindow",
       })
-
-      if (!response.ok) {
-        throw new Error("Failed to delete pickup window")
-      }
+      if (!ok) throw new Error(message || "Failed to delete pickup window")
 
       // Remove the deleted window from the state
       setPickupWindows(pickupWindows.filter((window) => window.id !== windowToDelete))
@@ -349,6 +295,11 @@ export default function PickupWindowsTab({ eventId }: PickupWindowsTabProps) {
       setPickupWindows([...pickupWindows, newWindow])
     }
 
+    // Update selected location if this window has a location
+    if (newWindow.pickupLocation) {
+      setSelectedLocation(newWindow.pickupLocation)
+    }
+
     setIsModalOpen(false)
 
     // Reload pickup windows to ensure we have the latest data
@@ -359,27 +310,11 @@ export default function PickupWindowsTab({ eventId }: PickupWindowsTabProps) {
 
   const handleTimeSlotsOptionChange = async (option: string) => {
     try {
-      // Get the auth token from localStorage
-      const token = localStorage.getItem("auth_token")
-
-      if (!token) {
-        throw new Error("No authentication token found")
-      }
-
-      const response = await fetch(`${API_URL}/events/${eventId}`, {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          time_slots_option: option,
-        }),
+      const { ok, message } = await api.put(`/events/${eventId}`, {
+        data: { time_slots_option: option },
+        pointName: "updateEventTimeSlotsOption",
       })
-
-      if (!response.ok) {
-        throw new Error("Failed to update time slots option")
-      }
+      if (!ok) throw new Error(message || "Failed to update time slots option")
 
       setTimeSlotsOption(option)
     } catch (error) {
@@ -421,6 +356,41 @@ export default function PickupWindowsTab({ eventId }: PickupWindowsTabProps) {
         </span>
       </div>
 
+      {/* Selected Location Display */}
+      {selectedLocation && (
+        <div className="bg-green-50 p-4 rounded-md border border-green-100">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <MapPin className="text-green-600" size={20} />
+              <div>
+                <p className="font-medium text-green-800">{selectedLocation.name}</p>
+                {(selectedLocation.formatted_address || selectedLocation.address) && (
+                  <p className="text-sm text-green-600">
+                    {selectedLocation.formatted_address || selectedLocation.address}
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="text-sm text-green-600">
+              Default pickup location
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* No location selected state */}
+      {!loading && !selectedLocation && pickupWindows.length === 0 && (
+        <div className="bg-orange-50 p-4 rounded-md border border-orange-100">
+          <div className="flex items-center gap-3">
+            <MapPin className="text-orange-500" size={20} />
+            <div>
+              <p className="font-medium text-orange-800">No location selected</p>
+              <p className="text-sm text-orange-600">Add a pickup window below to set your first location</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="bg-blue-50 p-4 rounded-md border border-blue-100">
         <div className="flex items-start gap-3">
           <Info className="text-blue-500 mt-0.5 flex-shrink-0" size={18} />
@@ -430,6 +400,77 @@ export default function PickupWindowsTab({ eventId }: PickupWindowsTabProps) {
           </p>
         </div>
       </div>
+
+      {/* Available Pickup Locations */}
+      {!loading && pickupLocations.length > 0 && (
+        <div className="bg-gray-50 p-4 rounded-md border border-gray-200">
+          <h3 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
+            <MapPin className="text-gray-600" size={18} />
+            Available Pickup Locations ({pickupLocations.length})
+          </h3>
+          <div className="grid gap-3 md:grid-cols-2">
+            {pickupLocations.map((location) => (
+              <div
+                key={location.id}
+                className="bg-white p-3 rounded-md border border-gray-200 hover:border-gray-300 transition-colors"
+              >
+                <div className="flex items-start gap-3">
+                  {location.photo_url || location.image_url ? (
+                    <img
+                      src={location.photo_url || location.image_url}
+                      alt={location.name}
+                      className="w-12 h-12 rounded-md object-cover flex-shrink-0"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 bg-gray-200 rounded-md flex items-center justify-center flex-shrink-0">
+                      <MapPin className="text-gray-400" size={20} />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-medium text-gray-900 truncate">{location.name}</h4>
+                    {(location.formatted_address || location.address) && (
+                      <p className="text-sm text-gray-600 mt-1">
+                        {location.formatted_address || location.address}
+                      </p>
+                    )}
+                    {location.instructions && (
+                      <p className="text-xs text-gray-500 mt-1 overflow-hidden"
+                         style={{
+                           display: '-webkit-box',
+                           WebkitLineClamp: 2,
+                           WebkitBoxOrient: 'vertical' as const,
+                         }}>
+                        {location.instructions}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* No locations available */}
+      {!loading && pickupLocations.length === 0 && (
+        <div className="bg-yellow-50 p-4 rounded-md border border-yellow-200">
+          <div className="flex items-start gap-3">
+            <MapPin className="text-yellow-600 mt-0.5 flex-shrink-0" size={18} />
+            <div>
+              <p className="font-medium text-yellow-800">No pickup locations available</p>
+              <p className="text-sm text-yellow-700 mt-1">
+                You need to create pickup locations first before adding pickup windows.
+              </p>
+              <button
+                onClick={() => router.push('/dashboard?tab=locations')}
+                className="mt-2 text-sm text-yellow-700 underline hover:text-yellow-800"
+              >
+                Go to Locations tab to add locations
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Loading state */}
       {loading && (
@@ -487,8 +528,10 @@ export default function PickupWindowsTab({ eventId }: PickupWindowsTabProps) {
                       {window.pickupLocation ? (
                         <>
                           {window.pickupLocation.name}
-                          {window.pickupLocation.short_address && (
-                            <span className="ml-1 text-gray-400">({window.pickupLocation.short_address})</span>
+                          {(window.pickupLocation.formatted_address || window.pickupLocation.address) && (
+                            <span className="ml-1 text-gray-400">
+                              ({window.pickupLocation.formatted_address || window.pickupLocation.address})
+                            </span>
                           )}
                         </>
                       ) : (
@@ -554,7 +597,7 @@ export default function PickupWindowsTab({ eventId }: PickupWindowsTabProps) {
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg w-full max-w-md p-6">
             <h3 className="text-lg font-medium mb-4">Delete Pickup Window</h3>
             <p className="text-gray-600 mb-6">
@@ -579,6 +622,22 @@ export default function PickupWindowsTab({ eventId }: PickupWindowsTabProps) {
         </div>
       )}
 
+      {/* Save & Continue Button */}
+      <div className="flex justify-between items-center pt-6 border-t border-gray-200">
+        <p className="text-sm text-gray-500">
+          {pickupWindows.length === 0 
+            ? "You can add pickup windows later if needed."
+            : `${pickupWindows.length} pickup window${pickupWindows.length !== 1 ? 's' : ''} configured.`
+          }
+        </p>
+        <button
+          onClick={() => onContinue?.()}
+          className="px-6 py-2 bg-[var(--primary-color,#1A1625)] text-white rounded-md hover:bg-opacity-90 transition-colors"
+        >
+          Save & Continue
+        </button>
+      </div>
+
       {/* Pickup Window Modal */}
       <PickupWindowModal
         isOpen={isModalOpen}
@@ -586,7 +645,6 @@ export default function PickupWindowsTab({ eventId }: PickupWindowsTabProps) {
         onSave={handleModalSave}
         eventId={eventId}
         pickupWindow={editingWindow}
-        pickupLocations={pickupLocations}
       />
     </div>
   )

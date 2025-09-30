@@ -7,17 +7,8 @@ import { X, Info, Upload, Trash2, Eye } from "lucide-react"
 import toast from "react-hot-toast"
 import TaxRateModal from "./tax-rate-modal"
 import GooglePlacesAutocomplete from "./google-places-autocomplete"
-
-interface PickupLocation {
-  id: string
-  name: string
-  address: string
-  apt_suite?: string
-  instructions?: string
-  photo_url?: string
-  hide_address: boolean
-  tax_rate: number
-}
+import api from "@/lib/api-client"
+import type { PickupLocation } from "@/types/pickup-types"
 
 interface CreateLocationModalProps {
   isOpen: boolean
@@ -42,7 +33,7 @@ export default function CreateLocationModal({ isOpen, onClose, onSave, location 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api"
+  // Using shared API client handles auth automatically
 
   // Initialize form with existing location data if editing
   useEffect(() => {
@@ -99,13 +90,6 @@ export default function CreateLocationModal({ isOpen, onClose, onSave, location 
     try {
       setIsSubmitting(true)
 
-      // Get the auth token from localStorage
-      const token = localStorage.getItem("auth_token")
-
-      if (!token) {
-        throw new Error("No authentication token found")
-      }
-
       // Create form data for multipart/form-data submission
       const formData = new FormData()
       formData.append("name", name)
@@ -130,38 +114,33 @@ export default function CreateLocationModal({ isOpen, onClose, onSave, location 
         formData.append("remove_photo", "1")
       }
 
-      let response
+      let ok: boolean
+      let data: any
+      let message: string | undefined
 
       if (location) {
-        // Update existing location
-        formData.append("_method", "PUT") // Laravel method spoofing
-
-        response = await fetch(`${API_URL}/pickup-locations/${location.id}`, {
-          method: "POST", // Actually PUT, but using POST with _method for file upload
-          headers: {
-            Authorization: `Bearer ${token}`,
-            // Don't set Content-Type here, it will be set automatically with the boundary
-          },
-          body: formData,
+        // Update existing location (method spoofing via _method)
+        formData.append("_method", "PUT")
+        const res = await api.post<any>(`/pickup-locations/${location.id}`, {
+          formData,
+          pointName: "updatePickupLocation",
         })
+        ok = res.ok
+        data = res.data
+        message = res.message
       } else {
-        // Create new location
-        response = await fetch(`${API_URL}/pickup-locations`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            // Don't set Content-Type here, it will be set automatically with the boundary
-          },
-          body: formData,
+        const res = await api.post<any>(`/pickup-locations`, {
+          formData,
+          pointName: "createPickupLocation",
         })
+        ok = res.ok
+        data = res.data
+        message = res.message
       }
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.message || "Failed to save location")
+      if (!ok) {
+        throw new Error(message || "Failed to save location")
       }
-
-      const data = await response.json()
 
       toast.success(location ? "Location updated successfully" : "Location created successfully", {
         style: {
@@ -171,7 +150,7 @@ export default function CreateLocationModal({ isOpen, onClose, onSave, location 
         },
       })
 
-      onSave(data.data)
+  onSave(data)
     } catch (error) {
       console.error("Error saving location:", error)
       toast.error(error instanceof Error ? error.message : "Failed to save location", {
@@ -192,25 +171,10 @@ export default function CreateLocationModal({ isOpen, onClose, onSave, location 
     try {
       setIsSubmitting(true)
 
-      // Get the auth token from localStorage
-      const token = localStorage.getItem("auth_token")
-
-      if (!token) {
-        throw new Error("No authentication token found")
-      }
-
-      const response = await fetch(`${API_URL}/pickup-locations/${location.id}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
+      const { ok, message } = await api.delete(`/pickup-locations/${location.id}`, {
+        pointName: "deletePickupLocation",
       })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.message || "Failed to delete location")
-      }
+      if (!ok) throw new Error(message || "Failed to delete location")
 
       toast.success("Location deleted successfully", {
         style: {
@@ -220,7 +184,7 @@ export default function CreateLocationModal({ isOpen, onClose, onSave, location 
         },
       })
 
-      // Close the modal and refresh the parent component
+  // Close the modal and refresh the parent component
       onClose()
     } catch (error) {
       console.error("Error deleting location:", error)
@@ -282,12 +246,12 @@ export default function CreateLocationModal({ isOpen, onClose, onSave, location 
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg w-full max-w-md max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
           <h2 className="text-xl font-semibold">{location ? "Edit Location" : "Create Location"}</h2>
-          <button onClick={onClose} className="p-1 rounded-full hover:bg-gray-100">
+          <button onClick={onClose} aria-label="Close" className="p-1 rounded-full hover:bg-gray-100">
             <X size={20} />
           </button>
         </div>
@@ -364,7 +328,15 @@ export default function CreateLocationModal({ isOpen, onClose, onSave, location 
               <Info size={16} className="text-gray-400" />
             </div>
 
-            <input type="file" ref={fileInputRef} onChange={handlePhotoChange} accept="image/*" className="hidden" />
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handlePhotoChange}
+              accept="image/*"
+              aria-label="Upload pickup location photo"
+              title="Upload pickup location photo"
+              className="hidden"
+            />
 
             <div className="border border-dashed border-gray-300 rounded-md p-4">
               {photoUrl ? (
@@ -381,21 +353,24 @@ export default function CreateLocationModal({ isOpen, onClose, onSave, location 
                   <div className="absolute top-2 right-2 flex gap-2">
                     <button
                       onClick={toggleImagePreview}
-                      className="p-2 bg-black bg-opacity-50 rounded-full text-white hover:bg-opacity-70 transition-opacity"
+                      aria-label="View full image"
+                      className="p-2 bg-black/50 rounded-full text-white hover:bg-black/70 transition-opacity"
                       title="View full image"
                     >
                       <Eye size={16} />
                     </button>
                     <button
                       onClick={handleOpenFileDialog}
-                      className="p-2 bg-black bg-opacity-50 rounded-full text-white hover:bg-opacity-70 transition-opacity"
+                      aria-label="Change image"
+                      className="p-2 bg-black/50 rounded-full text-white hover:bg-black/70 transition-opacity"
                       title="Change image"
                     >
                       <Upload size={16} />
                     </button>
                     <button
                       onClick={handleRemovePhoto}
-                      className="p-2 bg-red-500 bg-opacity-70 rounded-full text-white hover:bg-opacity-90 transition-opacity"
+                      aria-label="Remove image"
+                      className="p-2 bg-red-500/70 rounded-full text-white hover:bg-red-500/90 transition-opacity"
                       title="Remove image"
                     >
                       <Trash2 size={16} />
@@ -511,11 +486,17 @@ export default function CreateLocationModal({ isOpen, onClose, onSave, location 
 
       {/* Image Preview Modal */}
       {isImagePreviewOpen && photoUrl && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg w-full max-w-4xl overflow-hidden">
             <div className="p-4 border-b border-gray-200 flex justify-between items-center">
               <h3 className="text-lg font-medium">Location Image Preview</h3>
-              <button type="button" onClick={toggleImagePreview} className="p-2 rounded-full hover:bg-gray-100">
+              <button
+                type="button"
+                onClick={toggleImagePreview}
+                aria-label="Close preview"
+                title="Close preview"
+                className="p-2 rounded-full hover:bg-gray-100"
+              >
                 <X size={20} />
               </button>
             </div>
@@ -545,7 +526,7 @@ export default function CreateLocationModal({ isOpen, onClose, onSave, location 
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg w-full max-w-md p-6">
             <h3 className="text-lg font-medium mb-4">Delete Location</h3>
             <p className="text-gray-600 mb-6">

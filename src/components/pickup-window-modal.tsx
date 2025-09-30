@@ -5,6 +5,7 @@ import { X, Calendar, Clock } from "lucide-react"
 import toast from "react-hot-toast"
 import LocationSelector from "./location-selector"
 import type { PickupWindow, PickupLocation } from "@/types/pickup-types"
+import api from "@/lib/api-client"
 
 interface PickupWindowModalProps {
   isOpen: boolean
@@ -25,7 +26,7 @@ export default function PickupWindowModal({ isOpen, onClose, onSave, eventId, pi
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
   const [locationImage, setLocationImage] = useState<string | null>(null)
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api"
+  // Using shared API client handles auth + base URL
 
   // Initialize form with existing pickup window data if editing
   useEffect(() => {
@@ -134,13 +135,6 @@ export default function PickupWindowModal({ isOpen, onClose, onSave, eventId, pi
     try {
       setIsSubmitting(true)
 
-      // Get the auth token from localStorage
-      const token = localStorage.getItem("auth_token")
-
-      if (!token) {
-        throw new Error("No authentication token found")
-      }
-
       // Format times to ensure they're in the correct H:i format
       const formattedStartTime = formatTimeForAPI(startTime)
       const formattedEndTime = formatTimeForAPI(endTime)
@@ -155,52 +149,39 @@ export default function PickupWindowModal({ isOpen, onClose, onSave, eventId, pi
 
       console.log("Sending pickup window data:", windowData)
 
-      let response
+      let ok: boolean
+      let data: any
+      let message: string | undefined
 
       if (pickupWindow) {
-        // Update existing pickup window
-        response = await fetch(`${API_URL}/events/${eventId}/pickup-windows/${pickupWindow.id}`, {
-          method: "PUT",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(windowData),
+        const res = await api.put<any>(`/events/${eventId}/pickup-windows/${pickupWindow.id}`, {
+          data: windowData,
+          pointName: "updatePickupWindow",
         })
+        ok = res.ok
+        data = res.data
+        message = res.message
       } else {
-        // Create new pickup window
-        response = await fetch(`${API_URL}/events/${eventId}/pickup-windows`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(windowData),
+        const res = await api.post<any>(`/events/${eventId}/pickup-windows`, {
+          data: windowData,
+          pointName: "createPickupWindow",
         })
+        ok = res.ok
+        data = res.data
+        message = res.message
       }
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        console.error("API error response:", errorData)
-
-        // Handle validation errors from the API
-        if (errorData.errors) {
-          const apiErrors: Record<string, string> = {}
-
-          Object.entries(errorData.errors).forEach(([key, messages]) => {
-            if (Array.isArray(messages) && messages.length > 0) {
-              apiErrors[key] = messages[0] as string
-            }
+      if (!ok) {
+        const apiErrors: Record<string, string> = {}
+        const errObj: any = data
+        if (errObj && typeof errObj === "object" && errObj.errors) {
+          Object.entries(errObj.errors).forEach(([key, messages]) => {
+            if (Array.isArray(messages) && messages.length > 0) apiErrors[key] = messages[0] as string
           })
-
           setValidationErrors(apiErrors)
-          throw new Error(errorData.message || "Validation failed")
-        } else {
-          throw new Error(errorData.message || "Failed to save pickup window")
         }
+        throw new Error(message || errObj?.message || "Failed to save pickup window")
       }
-
-      const data = await response.json()
 
       toast.success(pickupWindow ? "Pickup window updated successfully" : "Pickup window created successfully", {
         style: {
@@ -210,7 +191,7 @@ export default function PickupWindowModal({ isOpen, onClose, onSave, eventId, pi
         },
       })
 
-      onSave(data.data)
+      onSave(data)
     } catch (error) {
       console.error("Error saving pickup window:", error)
       toast.error(error instanceof Error ? error.message : "Failed to save pickup window", {
@@ -261,7 +242,7 @@ export default function PickupWindowModal({ isOpen, onClose, onSave, eventId, pi
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg w-full max-w-md max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200">

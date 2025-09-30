@@ -38,8 +38,9 @@ export default function SignupForm() {
     setIsSubmitting(true)
 
     try {
-      // API call to Laravel backend
-      const response = await fetch("http://your-laravel-api.com/api/signup", {
+  // API call to backend (uses NEXT_PUBLIC_API_URL)
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || process.env.BACKEND_URL || "http://localhost:3000"
+  const response = await fetch(`${API_URL}/auth/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

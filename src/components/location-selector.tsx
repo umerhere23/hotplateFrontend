@@ -3,22 +3,8 @@
 import { useState, useEffect } from "react"
 import { X, Edit, Check } from "lucide-react"
 import CreateLocationModal from "./create-location-modal"
-
-interface PickupLocation {
-  id: string
-  name: string
-  street_address: string
-  unit_suite?: string
-  city?: string
-  state?: string
-  zip_code?: string
-  instructions?: string
-  photo_url?: string
-  hide_address: boolean
-  tax_rate: number
-  formatted_address: string
-  short_address: string
-}
+import type { PickupLocation } from "@/types/pickup-types"
+import api from "@/lib/api-client"
 
 interface LocationSelectorProps {
   isOpen: boolean
@@ -34,7 +20,7 @@ export default function LocationSelector({ isOpen, onClose, onSelect, selectedLo
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [editingLocation, setEditingLocation] = useState<PickupLocation | null>(null)
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api"
+  // Using shared API client handles auth automatically (Redux/localStorage)
 
   useEffect(() => {
     loadLocations()
@@ -43,27 +29,11 @@ export default function LocationSelector({ isOpen, onClose, onSelect, selectedLo
   const loadLocations = async () => {
     try {
       setLoading(true)
-
-      // Get the auth token from localStorage
-      const token = localStorage.getItem("auth_token")
-
-      if (!token) {
-        throw new Error("No authentication token found")
-      }
-
-      const response = await fetch(`${API_URL}/pickup-locations`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      })
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch pickup locations")
-      }
-
-      const data = await response.json()
-      setLocations(data.data || [])
+      const { ok, data, message } = await api.get<any>(`/pickup-locations`, { pointName: "getPickupLocations" })
+      if (!ok) throw new Error(message || "Failed to fetch pickup locations")
+      // api-client unwraps .data when present
+      setLocations(Array.isArray(data) ? (data as PickupLocation[]) : [])
+      setError(null)
     } catch (error) {
       console.error("Error loading pickup locations:", error)
       setError(error instanceof Error ? error.message : "Failed to load pickup locations")
@@ -92,6 +62,8 @@ export default function LocationSelector({ isOpen, onClose, onSelect, selectedLo
     }
 
     setIsCreateModalOpen(false)
+  // Auto-select the newly created/updated location and close selector via parent handler
+  onSelect(location)
   }
 
   const handleSelectLocation = (location: PickupLocation) => {
@@ -101,7 +73,7 @@ export default function LocationSelector({ isOpen, onClose, onSelect, selectedLo
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg w-full max-w-md max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
@@ -113,7 +85,7 @@ export default function LocationSelector({ isOpen, onClose, onSelect, selectedLo
             >
               Create
             </button>
-            <button onClick={onClose} className="p-1 rounded-full hover:bg-gray-100">
+            <button onClick={onClose} aria-label="Close" className="p-1 rounded-full hover:bg-gray-100">
               <X size={20} />
             </button>
           </div>
@@ -172,6 +144,7 @@ export default function LocationSelector({ isOpen, onClose, onSelect, selectedLo
                           e.stopPropagation()
                           handleEditLocation(location)
                         }}
+                        aria-label="Edit location"
                         className="p-1 rounded-full hover:bg-gray-100"
                       >
                         <Edit size={16} />
