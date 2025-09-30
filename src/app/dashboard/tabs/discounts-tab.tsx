@@ -123,7 +123,7 @@ function AddDiscountModal({ open, onClose }: { open: boolean; onClose: () => voi
           {(applicability === 'general' || applicability === 'event' || applicability === 'customer') && (
             <div className="mb-5 space-y-3">
               {/* Event discount: show event search */}
-              {applicability === 'event' && (
+              {/* {applicability === 'event' && (
                 <div className="border rounded-lg px-3 py-2 mb-2" style={{ boxShadow: '0 0 0 2px #111 inset' }}>
                   <div className="font-medium text-sm mb-1">Customer</div>
                   <input
@@ -132,7 +132,7 @@ function AddDiscountModal({ open, onClose }: { open: boolean; onClose: () => voi
                     placeholder="Search by event name"
                   />
                 </div>
-              )}
+              )} */}
               {/* Customer discount: show customer search */}
               {applicability === 'customer' && (
                 <div className="border rounded-lg px-3 py-2 mb-2" style={{ boxShadow: '0 0 0 2px #111 inset' }}>
