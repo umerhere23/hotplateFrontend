@@ -453,3 +453,88 @@ function mapServerProduct(p: any): Product {
   } as Product;
 }
 
+// Storefront API interfaces
+export interface StorefrontTheme {
+  name: string;
+  primary: string;
+  secondary: string;
+  background: string;
+}
+
+export interface StorefrontSocialLinks {
+  instagram: string;
+  facebook: string;
+  twitter: string;
+  tiktok: string;
+}
+
+export interface StorefrontFAQ {
+  question: string;
+  answer: string;
+}
+
+export interface StorefrontPayload {
+  businessName: string;
+  aboutText: string;
+  hideBusinessName: boolean;
+  theme: StorefrontTheme;
+  logoImage?: string | null;
+  bannerImage?: string | null;
+  socialLinks: StorefrontSocialLinks;
+  otherLinks: string[];
+  faqs: StorefrontFAQ[];
+}
+
+export async function saveStorefront(
+  payload: StorefrontPayload & { logoFile?: File; bannerFile?: File }
+): Promise<{ success: boolean; data?: any; message?: string }> {
+  try {
+    const formData = new FormData();
+    
+    formData.append('businessName', payload.businessName);
+    formData.append('aboutText', payload.aboutText || '');
+    formData.append('hideBusinessName', payload.hideBusinessName.toString());
+    formData.append('theme', JSON.stringify(payload.theme));
+    formData.append('socialLinks', JSON.stringify(payload.socialLinks));
+    formData.append('otherLinks', JSON.stringify(payload.otherLinks));
+    formData.append('faqs', JSON.stringify(payload.faqs));
+    
+    if (payload.logoFile) {
+      formData.append('logoImage', payload.logoFile);
+    }
+    if (payload.bannerFile) {
+      formData.append('bannerImage', payload.bannerFile);
+    }
+
+    const { ok, data, message } = await api.post("/storefront", {
+      formData: formData,
+      pointName: "saveStorefront",
+      auth: true,
+    });
+    
+    if (!ok) return { success: false, message };
+    return { success: true, data };
+  } catch (err: any) {
+    console.error("saveStorefront error", err);
+    return { success: false, message: err?.message || "Unknown error" };
+  }
+}
+
+export async function getStorefront(): Promise<{
+  success: boolean;
+  data?: StorefrontPayload;
+  message?: string;
+}> {
+  try {
+    const { ok, data, message } = await api.get("/storefront", {
+      pointName: "getStorefront",
+    });
+    
+    if (!ok) return { success: false, message };
+    return { success: true, data };
+  } catch (err: any) {
+    console.error("getStorefront error", err);
+    return { success: false, message: err?.message || "Unknown error" };
+  }
+}
+

@@ -1,7 +1,7 @@
 "use client";
 import { store } from "@/store";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api";
 
 type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -28,8 +28,8 @@ function buildQuery(params?: RequestOptions["params"]) {
 
 function getAuth() {
   const state = store.getState?.();
-  const token = state?.auth?.token || (typeof window !== "undefined" ? localStorage.getItem("auth_token") : null);
-  const tokenType = state?.auth?.tokenType || "Bearer";
+  const token = state?.auth?.token || (typeof window !== "undefined" ? localStorage.getItem("authToken") : null);
+  const tokenType = state?.auth?.tokenType || (typeof window !== "undefined" ? localStorage.getItem("tokenType") : null) || "Bearer";
   return { token, tokenType };
 }
 

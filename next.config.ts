@@ -12,7 +12,6 @@ const nextConfig = {
     unoptimized: true,
   },
   webpack: (config:any ) => {
-    // This is needed to fix the react-day-picker module resolution issue
     return config
   },
 }
