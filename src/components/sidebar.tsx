@@ -67,14 +67,18 @@ export function Sidebar() {
   }
 
   return (
-    <div className="w-[160px] border-r border-gray-200 flex flex-col h-screen sticky top-0">
-      {/* Logo */}
-      <div className="p-3 border-b border-gray-200">
-        <h2 className="text-sm font-bold">Hotplate</h2>
+    <div className="w-56 border-r border-gray-200 flex flex-col h-screen sticky top-0 bg-white shadow-sm">
+      {/* Logo / Brand */}
+      <div className="p-4 border-b border-gray-100 flex items-center gap-3">
+        <div className="w-10 h-10 rounded-full flex items-center justify-center bg-orange-500 text-white font-bold shadow">HP</div>
+        <div>
+          <h2 className="text-sm font-semibold">Hotplate</h2>
+          <div className="text-xs text-gray-500">Chef dashboard</div>
+        </div>
       </div>
 
       {/* Unified nav */}
-      <nav className="flex-1 flex flex-col">
+      <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-1">
         {navItems.map((item) => (
           <SidebarItem
             key={item.href}
@@ -88,17 +92,17 @@ export function Sidebar() {
       </nav>
 
       {/* Bottom actions */}
-      <div className="p-2 border-t border-gray-200 space-y-2">
+      <div className="p-3 border-t border-gray-100 space-y-2">
         <button
-          className="flex items-center gap-1 px-2 py-2 rounded-md hover:bg-gray-100 text-gray-600 text-xs w-full justify-center"
+          className="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-gray-50 text-gray-700 text-sm w-full"
           aria-label="Collapse sidebar"
           title="Collapse"
         >
-          <ChevronLeft size={14} /> Collapse
+          <ChevronLeft size={14} /> <span>Collapse</span>
         </button>
         <button
           onClick={handleLogout}
-          className="flex items-center gap-1 px-2 py-2 rounded-md hover:bg-red-50 text-red-600 text-xs w-full justify-center border border-red-200"
+          className="flex items-center gap-2 px-3 py-2 rounded-md bg-red-50 hover:bg-red-100 text-red-600 text-sm w-full justify-center border border-red-100"
           aria-label="Log out"
           title="Log out"
         >
@@ -123,25 +127,29 @@ function SidebarItem({
   badge?: number
 }) {
   return (
-    <Link
-      href={href}
-      className={`flex items-center gap-2 justify-start px-3 text-xs flex-1 
-      ${
-        active
-          ? "text-white bg-[var(--primary-color,#1A1625)] hover:bg-[var(--primary-color-hover,#2a2435)] rounded-lg"
-          : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
-      }
-      ${label === "Payout" ? "border-b border-gray-200" : ""}`}
-    >
-      <div className="relative flex items-center">
-        {icon}
+    <Link href={href} className={`group block`}>
+      <div
+        className={`flex items-center gap-3 px-2 py-2 rounded-md transition-colors duration-150
+        ${active ? 'bg-orange-500 text-white' : 'text-gray-700 hover:bg-gray-50'}`}
+      >
+        {/* left indicator */}
+        <span className={`w-1.5 h-8 rounded-r-md ${active ? 'bg-orange-700' : 'bg-transparent'}`} />
+
+        {/* icon + label */}
+        <div className="flex items-center gap-3 flex-1">
+          <div className={`w-9 h-9 flex items-center justify-center rounded-md transition-colors ${active ? 'bg-orange-600 text-white' : 'text-gray-600'}`}>
+            {icon}
+          </div>
+          <span className="text-sm font-medium">{label}</span>
+        </div>
+
+        {/* badge */}
         {badge && (
-          <span className="absolute -top-1 -right-2 bg-red-500 text-white text-[9px] rounded-full w-3.5 h-3.5 flex items-center justify-center">
+          <span className={`inline-flex items-center justify-center px-2 py-1 text-xs rounded-full ${active ? 'bg-white/20 text-white' : 'bg-red-100 text-red-600'}`}>
             {badge}
           </span>
         )}
       </div>
-      <span>{label}</span>
     </Link>
   )
 }
