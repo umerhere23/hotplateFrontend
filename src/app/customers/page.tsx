@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -12,8 +12,10 @@ import { MessageSquare, Download, MoreVertical, User, Award, ChevronDown, Chevro
 export default function CustomersPage() {
   const [activeTab, setActiveTab] = useState("customers");
   const [openIndex, setOpenIndex] = useState(null);
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [query, setQuery] = useState("");
 
-  const toggleSection = (index) => {
+  const toggleSection = (index: number) => {
     setOpenIndex(openIndex === index ? null : index);
   };
 
@@ -38,25 +40,30 @@ export default function CustomersPage() {
   ];
 
   const stats = [
-    { title: "Total customers", value: "1" },
-    { title: "Subscribed to SMS", value: "1" },
-    { title: "New in the last 30 days", value: "1" },
-    { title: "Loyalty points", value: "0" },
+    { title: "Total customers", value: String(customers.length || 0) },
+    { title: "Subscribed to SMS", value: "-" },
+    { title: "New in the last 30 days", value: "-" },
+    { title: "Loyalty points", value: "-" },
   ];
 
-  const customers = [
-    {
-      firstName: "Muhammad aqib",
-      lastName: "javed",
-      nickname: "-",
-      email: "tahakpak123@gmail.com",
-      phone: "+1 (978) 615-9222",
-      subscribed: true,
-      totalOrders: 0,
-      totalSpent: "$0.00",
-      lastOrder: "-",
-    },
-  ];
+  // Fetch customers
+  useEffect(() => {
+    let mounted = true;
+    async function loadCustomers() {
+      try {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api'}/customers${query ? `?q=${encodeURIComponent(query)}` : ''}`);
+        const data = await res.json();
+        if (!mounted) return;
+        const items = Array.isArray(data) ? data : data?.data ?? [];
+        setCustomers(items);
+      } catch (err) {
+        console.error(err);
+        setCustomers([]);
+      }
+    }
+    const t = setTimeout(loadCustomers, 200);
+    return () => { mounted = false; clearTimeout(t); };
+  }, [query]);
 
   return (
     <div className="p-6">

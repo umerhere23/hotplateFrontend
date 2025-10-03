@@ -1,4 +1,6 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
+import { getEvents } from "@/services/api";
+import api from "@/lib/api-client";
 function AddDiscountModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [restrictFirstTime, setRestrictFirstTime] = useState(false);
@@ -8,6 +10,93 @@ function AddDiscountModal({ open, onClose }: { open: boolean; onClose: () => voi
   const [startDate, setStartDate] = useState<string>(new Date().toISOString().slice(0, 10));
   const [showEndDate, setShowEndDate] = useState(false);
   const [endDate, setEndDate] = useState<string>("");
+
+  // Form fields
+  const [title, setTitle] = useState("");
+  const [code, setCode] = useState("");
+  const [amount, setAmount] = useState<number | ''>("");
+  const [maxDiscountValue, setMaxDiscountValue] = useState<number | ''>("");
+  const [minSubtotal, setMinSubtotal] = useState<number | ''>("");
+  const [maxUses, setMaxUses] = useState<number | ''>("");
+
+  // Event search
+  const [eventQuery, setEventQuery] = useState("");
+  const [eventResults, setEventResults] = useState<any[]>([]);
+  const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
+
+  // Customer search
+  const [customerQuery, setCustomerQuery] = useState("");
+  const [customerResults, setCustomerResults] = useState<any[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<any | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    async function searchEvents() {
+      if (!eventQuery) return setEventResults([]);
+      try {
+        const events = await getEvents();
+        if (!mounted) return;
+        const filtered = events.filter((e) => (e.title || '').toLowerCase().includes(eventQuery.toLowerCase()));
+        setEventResults(filtered.slice(0, 8));
+      } catch (err) {
+        console.error(err);
+      }
+    }
+    const t = setTimeout(searchEvents, 250);
+    return () => {
+      mounted = false;
+      clearTimeout(t);
+    };
+  }, [eventQuery]);
+
+  useEffect(() => {
+    let mounted = true;
+    async function searchCustomers() {
+      if (!customerQuery) return setCustomerResults([]);
+      try {
+        const { ok, data } = await api.get(`/customers`, { params: { q: customerQuery } });
+        if (!mounted) return;
+        if (ok && Array.isArray(data)) setCustomerResults(data.slice(0, 8));
+        else setCustomerResults([]);
+      } catch (err) {
+        console.error(err);
+        setCustomerResults([]);
+      }
+    }
+    const t = setTimeout(searchCustomers, 250);
+    return () => { mounted = false; clearTimeout(t); };
+  }, [customerQuery]);
+
+  const handleSubmit = async () => {
+    // Build payload according to backend expectations
+    const payload: any = {
+      title,
+      code,
+      type: discountType,
+      amount: amount === '' ? 0 : amount,
+      max_discount_value: maxDiscountValue === '' ? undefined : maxDiscountValue,
+      min_subtotal: minSubtotal === '' ? undefined : minSubtotal,
+      max_uses: maxUses === '' ? undefined : maxUses,
+      applicability,
+      event_id: selectedEvent ? selectedEvent.id : undefined,
+      customer_id: selectedCustomer ? selectedCustomer.id : undefined,
+      start_date: startDate,
+      end_date: showEndDate ? endDate : undefined,
+    };
+
+    try {
+      const { ok, data, message } = await api.post('/discounts', { data: payload });
+      if (!ok) {
+        alert(`Failed to create discount: ${message || 'Unknown error'}`);
+        return;
+      }
+      alert('Discount created');
+      onClose();
+    } catch (err) {
+      console.error(err);
+      alert('Error creating discount');
+    }
+  };
 
   if (!open) return null;
   return (
@@ -25,13 +114,13 @@ function AddDiscountModal({ open, onClose }: { open: boolean; onClose: () => voi
           {/* Title */}
           <div className="mb-3">
             <label className="block font-medium mb-1 text-sm">Title</label>
-            <input type="text" className="w-full border rounded-lg px-3 py-1.5 mb-1 text-sm" placeholder="Title" />
+            <input value={title} onChange={e => setTitle(e.target.value)} type="text" className="w-full border rounded-lg px-3 py-1.5 mb-1 text-sm" placeholder="Title" />
             <div className="text-gray-500 text-xs">Discount title for internal use and reference</div>
           </div>
           {/* Code */}
           <div className="mb-3">
             <label className="block font-medium mb-1 text-sm">Code</label>
-            <input type="text" className="w-full border rounded-lg px-3 py-1.5 mb-1 text-sm" placeholder="Code" />
+            <input value={code} onChange={e => setCode(e.target.value)} type="text" className="w-full border rounded-lg px-3 py-1.5 mb-1 text-sm" placeholder="Code" />
             <div className="text-gray-500 text-xs">Discount code that customers will enter at checkout</div>
           </div>
           {/* Discount type */}
@@ -59,7 +148,7 @@ function AddDiscountModal({ open, onClose }: { open: boolean; onClose: () => voi
             <label className="block font-medium mb-1 text-sm">Discount amount</label>
             <div className="flex items-center gap-2">
               <span className="text-gray-500 text-sm">{discountType === 'percentage' ? '%' : '$'}</span>
-              <input type="number" className="w-full border rounded-lg px-3 py-1.5 text-sm" placeholder="0.00" min="0" />
+              <input value={amount} onChange={e => setAmount(e.target.value === '' ? '' : Number(e.target.value))} type="number" className="w-full border rounded-lg px-3 py-1.5 text-sm" placeholder="0.00" min="0" />
             </div>
             <div className="text-gray-500 text-xs mt-1">
               {discountType === 'percentage'
@@ -101,11 +190,25 @@ function AddDiscountModal({ open, onClose }: { open: boolean; onClose: () => voi
                 {applicability === 'event' && (
                   <>
                     <hr className="my-3" />
-                    <input
-                      type="text"
-                      className="w-full border rounded-lg px-3 py-2 text-sm mb-2"
-                      placeholder="Search by event name"
-                    />
+                    <div>
+                      <input
+                        value={eventQuery}
+                        onChange={e => setEventQuery(e.target.value)}
+                        type="text"
+                        className="w-full border rounded-lg px-3 py-2 text-sm mb-2"
+                        placeholder="Search by event name"
+                      />
+                      {eventResults.length > 0 && (
+                        <div className="border rounded bg-white mt-1 max-h-40 overflow-y-auto">
+                          {eventResults.map(ev => (
+                            <div key={ev.id} onClick={() => { setSelectedEvent(ev); setEventQuery(''); setEventResults([]); }} className="px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm">
+                              {ev.title}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {selectedEvent && <div className="mt-2 text-sm">Selected event: <strong>{selectedEvent.title}</strong></div>}
+                    </div>
                   </>
                 )}
               </div>
@@ -138,10 +241,22 @@ function AddDiscountModal({ open, onClose }: { open: boolean; onClose: () => voi
                 <div className="border rounded-lg px-3 py-2 mb-2" style={{ boxShadow: '0 0 0 2px #111 inset' }}>
                   <div className="font-medium text-sm mb-1">Customer</div>
                   <input
+                    value={customerQuery}
+                    onChange={e => setCustomerQuery(e.target.value)}
                     type="text"
                     className="w-full border rounded-lg px-3 py-2 text-sm mb-2"
                     placeholder="Search by name, email, or phone"
                   />
+                  {customerResults.length > 0 && (
+                    <div className="border rounded bg-white mt-1 max-h-40 overflow-y-auto">
+                      {customerResults.map(c => (
+                        <div key={c.id} onClick={() => { setSelectedCustomer(c); setCustomerQuery(''); setCustomerResults([]); }} className="px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm">
+                          {c.firstName || c.name} {c.lastName || ''} {c.email ? `(${c.email})` : ''}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {selectedCustomer && <div className="mt-2 text-sm">Selected customer: <strong>{selectedCustomer.email || selectedCustomer.name}</strong></div>}
                 </div>
               )}
               {/* Start/end date for general and customer discount */}
