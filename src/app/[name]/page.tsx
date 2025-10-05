@@ -189,7 +189,7 @@ export default function StorefrontPage({ params }: { params: { name: string } })
                   </div>
                 </div>
 
-                <button className="mt-4 w-full rounded-md bg-[#E8E8FF] text-[#4B3DF6] hover:bg-[#dedcff] text-sm font-medium py-2">Click to order</button>
+                <a href={`/${params.name}/${nextEvent?.id}`} className="mt-4 w-full inline-block text-center rounded-md bg-[#E8E8FF] text-[#4B3DF6] hover:bg-[#dedcff] text-sm font-medium py-2">Click to order</a>
               </div>
             )}
           </section>
