@@ -82,6 +82,8 @@ export default function Home() {
   const [errors, setErrors] = useState<{ name?: string; desc?: string; date?: string; time?: string; image?: string }>({});
   const [draftEvents, setDraftEvents] = useState<ApiEvent[]>([]);
   const [showDrafts, setShowDrafts] = useState<boolean>(true);
+  const [showPublishConfirm, setShowPublishConfirm] = useState(false);
+  const [isPublishingConfirm, setIsPublishingConfirm] = useState(false);
 
   const times = [
     "09:00 AM",
@@ -1107,26 +1109,24 @@ export default function Home() {
                   <div className="mt-8 space-y-3">
                     {/* Publish Button */}
                     <button
-                      onClick={() => {
+                      onClick={async () => {
                         const canPublish = eventName && eventDescription && items.length > 0 && pickupWindows.length > 0;
-                        if (canPublish) {
-                          toast.success("Event published successfully!");
-                          console.log("Publishing event with:", {
-                            eventName,
-                            eventDescription,
-                            menuItems: items,
-                            pickupWindows
-                          });
-                        } else {
+                        if (!canPublish) {
                           toast.error("Please complete all required sections before publishing");
+                          return;
                         }
+                        if (!createdEventId) {
+                          toast.error("Please save the event first before publishing");
+                          return;
+                        }
+                        setShowPublishConfirm(true);
                       }}
                       className={`w-full py-3 px-4 rounded-lg font-medium transition-colors ${
                         eventName && eventDescription && items.length > 0 && pickupWindows.length > 0
                           ? 'bg-green-500 hover:bg-green-600 text-white'
                           : 'bg-gray-200 text-gray-500 cursor-not-allowed'
                       }`}
-                      disabled={!(eventName && eventDescription && items.length > 0 && pickupWindows.length > 0)}
+                      disabled={!(eventName && items.length > 0 && pickupWindows.length > 0)}
                     >
                       Publish Event
                     </button>
@@ -1236,6 +1236,51 @@ export default function Home() {
             setShowCreateModal(false);
           }}
         />
+      )}
+
+      {showPublishConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowPublishConfirm(false)}></div>
+          <div className="relative bg-white rounded-lg shadow-xl w-full max-w-md mx-4 p-6">
+            <div className="flex items-start justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Publish event?</h3>
+              <button onClick={() => setShowPublishConfirm(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+            </div>
+            <p className="text-sm text-gray-600 mb-6">This will make your event visible to customers. You can unpublish later if needed.</p>
+            <div className="flex items-center justify-end gap-3">
+              <button
+                className="px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50"
+                onClick={() => setShowPublishConfirm(false)}
+                disabled={isPublishingConfirm}
+              >
+                Cancel
+              </button>
+              <button
+                className={`px-4 py-2 rounded-md text-white ${isPublishingConfirm ? 'bg-green-400' : 'bg-green-600 hover:bg-green-700'}`}
+                onClick={async () => {
+                  if (!createdEventId) return;
+                  try {
+                    setIsPublishingConfirm(true);
+                    const res = await updateEvent(createdEventId, { status: "published" } as any);
+                    if (res.success) {
+                      toast.success("Event published successfully");
+                      setShowPublishConfirm(false);
+                    } else {
+                      toast.error(res.message || "Failed to publish event");
+                    }
+                  } catch (e: any) {
+                    toast.error(e?.message || "Failed to publish event");
+                  } finally {
+                    setIsPublishingConfirm(false);
+                  }
+                }}
+                disabled={isPublishingConfirm}
+              >
+                {isPublishingConfirm ? 'Publishing…' : 'Publish'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -2,6 +2,8 @@
 
 import { useSearchParams } from "next/navigation"
 import { ExternalLink } from "lucide-react"
+import Link from "next/link"
+import { useSelector } from "react-redux"
 import { TabContent } from "@/components/tab-content"
 import { ThemeSwitcher } from "@/components/theme-switcher"
 
@@ -23,6 +25,7 @@ const tabs = [
 export default function Dashboard() {
   const searchParams = useSearchParams()
   const currentTab = searchParams.get("tab") || "events"
+  const username = useSelector((state: any) => state?.user?.currentUser?.business?.username || state?.user?.currentUser?.username || (typeof window !== 'undefined' ? localStorage.getItem('username') : null))
 
   return (
     <div>
@@ -32,6 +35,11 @@ export default function Dashboard() {
           <div className="flex items-center">
             <h1 className="text-2xl font-bold text-gray-900">My Store</h1>
             <ExternalLink size={16} className="ml-2 text-gray-500" />
+          </div>
+          <div>
+            <Link href={`/${username || ''}`} className="px-3 py-2 rounded-md text-sm border border-gray-300 text-gray-700 hover:bg-white">
+              Go to my storefront
+            </Link>
           </div>
         </div>
 
