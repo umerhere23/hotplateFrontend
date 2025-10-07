@@ -23,23 +23,35 @@ function AddDiscountModal({ open, onClose }: { open: boolean; onClose: () => voi
   const [eventQuery, setEventQuery] = useState("");
   const [eventResults, setEventResults] = useState<any[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
+  const [eventLoading, setEventLoading] = useState(false);
 
   // Customer search
   const [customerQuery, setCustomerQuery] = useState("");
   const [customerResults, setCustomerResults] = useState<any[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<any | null>(null);
+  const [customerLoading, setCustomerLoading] = useState(false);
 
   useEffect(() => {
     let mounted = true;
     async function searchEvents() {
-      if (!eventQuery) return setEventResults([]);
+      if (!eventQuery) {
+        setEventResults([]);
+        setEventLoading(false);
+        return;
+      }
       try {
+        setEventLoading(true);
+        console.log('[Event Search] Searching for:', eventQuery);
         const events = await getEvents();
+        console.log('[Event Search] Got events:', events);
         if (!mounted) return;
         const filtered = events.filter((e) => (e.title || '').toLowerCase().includes(eventQuery.toLowerCase()));
+        console.log('[Event Search] Filtered events:', filtered);
         setEventResults(filtered.slice(0, 8));
       } catch (err) {
-        console.error(err);
+        console.error('[Event Search] Error:', err);
+      } finally {
+        if (mounted) setEventLoading(false);
       }
     }
     const t = setTimeout(searchEvents, 250);
@@ -52,8 +64,13 @@ function AddDiscountModal({ open, onClose }: { open: boolean; onClose: () => voi
   useEffect(() => {
     let mounted = true;
     async function searchCustomers() {
-      if (!customerQuery) return setCustomerResults([]);
+      if (!customerQuery) {
+        setCustomerResults([]);
+        setCustomerLoading(false);
+        return;
+      }
       try {
+        setCustomerLoading(true);
         const { ok, data } = await api.get(`/customers`, { params: { q: customerQuery } });
         if (!mounted) return;
         if (ok && Array.isArray(data)) setCustomerResults(data.slice(0, 8));
@@ -61,6 +78,8 @@ function AddDiscountModal({ open, onClose }: { open: boolean; onClose: () => voi
       } catch (err) {
         console.error(err);
         setCustomerResults([]);
+      } finally {
+        if (mounted) setCustomerLoading(false);
       }
     }
     const t = setTimeout(searchCustomers, 250);
@@ -68,21 +87,37 @@ function AddDiscountModal({ open, onClose }: { open: boolean; onClose: () => voi
   }, [customerQuery]);
 
   const handleSubmit = async () => {
-    // Build payload according to backend expectations
+    if (!title.trim() || !code.trim() || amount === '' || amount <= 0) {
+      alert('Please fill in all required fields');
+      return;
+    }
+
     const payload: any = {
-      title,
-      code,
+      title: title.trim(),
+      code: code.trim().toUpperCase(),
       type: discountType,
-      amount: amount === '' ? 0 : amount,
-      max_discount_value: maxDiscountValue === '' ? undefined : maxDiscountValue,
-      min_subtotal: minSubtotal === '' ? undefined : minSubtotal,
-      max_uses: maxUses === '' ? undefined : maxUses,
+      amount: Number(amount),
+      max_discount_value: maxDiscountValue !== '' ? Number(maxDiscountValue) : undefined,
+      min_subtotal: minSubtotal !== '' ? Number(minSubtotal) : undefined,
+      max_uses: maxUses !== '' ? Number(maxUses) : undefined,
+      max_uses_per_customer: maxUsesPerCustomer !== '' ? Number(maxUsesPerCustomer) : undefined,
+      restrict_first_time: restrictFirstTime,
       applicability,
-      event_id: selectedEvent ? selectedEvent.id : undefined,
-      customer_id: selectedCustomer ? selectedCustomer.id : undefined,
-      start_date: startDate,
-      end_date: showEndDate ? endDate : undefined,
+      event_id: applicability === 'event' && selectedEvent ? selectedEvent.id : undefined,
+      customer_id: applicability === 'customer' && selectedCustomer ? selectedCustomer.id : undefined,
+      start_date: startDate || undefined,
+      end_date: showEndDate && endDate ? endDate : undefined,
     };
+
+    if (applicability === 'event' && !selectedEvent) {
+      alert('Please select an event for event discount');
+      return;
+    }
+
+    if (applicability === 'customer' && !selectedCustomer) {
+      alert('Please select a customer for customer discount');
+      return;
+    }
 
     try {
       const { ok, data, message } = await api.post('/discounts', { data: payload });
@@ -90,8 +125,8 @@ function AddDiscountModal({ open, onClose }: { open: boolean; onClose: () => voi
         alert(`Failed to create discount: ${message || 'Unknown error'}`);
         return;
       }
-      alert('Discount created');
-      onClose();
+      alert('Discount created successfully');
+      window.location.reload();
     } catch (err) {
       console.error(err);
       alert('Error creating discount');
@@ -156,13 +191,12 @@ function AddDiscountModal({ open, onClose }: { open: boolean; onClose: () => voi
                 : 'Amount of the discount, expressed as a flat dollar amount'}
             </div>
           </div>
-          {/* Maximum discount value (only for percentage) */}
           {discountType === 'percentage' && (
             <div className="mb-3">
               <label className="block font-medium mb-1 text-sm">Maximum discount value</label>
               <div className="flex items-center gap-2">
                 <span className="text-gray-500 text-sm">$</span>
-                <input type="number" className="w-full border rounded-lg px-3 py-1.5 text-sm" placeholder="0.00" min="0" />
+                <input value={maxDiscountValue} onChange={e => setMaxDiscountValue(e.target.value === '' ? '' : Number(e.target.value))} type="number" className="w-full border rounded-lg px-3 py-1.5 text-sm" placeholder="0.00" min="0" />
               </div>
               <div className="text-gray-500 text-xs mt-1">The value of the applied discount will be capped at the provided amount</div>
             </div>
@@ -190,24 +224,59 @@ function AddDiscountModal({ open, onClose }: { open: boolean; onClose: () => voi
                 {applicability === 'event' && (
                   <>
                     <hr className="my-3" />
-                    <div>
-                      <input
-                        value={eventQuery}
-                        onChange={e => setEventQuery(e.target.value)}
-                        type="text"
-                        className="w-full border rounded-lg px-3 py-2 text-sm mb-2"
-                        placeholder="Search by event name"
-                      />
-                      {eventResults.length > 0 && (
-                        <div className="border rounded bg-white mt-1 max-h-40 overflow-y-auto">
-                          {eventResults.map(ev => (
-                            <div key={ev.id} onClick={() => { setSelectedEvent(ev); setEventQuery(''); setEventResults([]); }} className="px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm">
-                              {ev.title}
+                    <div className="relative">
+                      {!selectedEvent ? (
+                        <div className="relative z-50">
+                          <input
+                            value={eventQuery}
+                            onChange={e => setEventQuery(e.target.value)}
+                            type="text"
+                            className="w-full border rounded-lg px-3 py-2 text-sm"
+                            placeholder="Search by event name"
+                          />
+                          {eventLoading && (
+                            <div className="absolute z-[9999] w-full border rounded-lg bg-white mt-1 px-3 py-2 shadow-2xl text-sm text-gray-500">
+                              Loading events...
                             </div>
-                          ))}
+                          )}
+                          {!eventLoading && eventQuery && eventResults.length === 0 && (
+                            <div className="absolute z-[9999] w-full border rounded-lg bg-white mt-1 px-3 py-2 shadow-2xl text-sm text-gray-500">
+                              No events found
+                            </div>
+                          )}
+                          {!eventLoading && eventResults.length > 0 && (
+                            <div className="absolute z-[9999] w-full border rounded-lg bg-white mt-1 max-h-40 overflow-y-auto shadow-2xl">
+                              {eventResults.map(ev => (
+                                <div 
+                                  key={ev.id} 
+                                  onClick={() => { 
+                                    setSelectedEvent(ev); 
+                                    setEventQuery(''); 
+                                    setEventResults([]); 
+                                  }} 
+                                  className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm border-b last:border-b-0"
+                                >
+                                  {ev.title}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between bg-gray-100 rounded-lg px-3 py-2">
+                          <div className="text-sm">
+                            <span className="text-gray-600">Selected event:</span>
+                            <span className="font-medium ml-2">{selectedEvent.title}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedEvent(null)}
+                            className="text-red-500 hover:text-red-700 text-sm font-medium"
+                          >
+                            Remove
+                          </button>
                         </div>
                       )}
-                      {selectedEvent && <div className="mt-2 text-sm">Selected event: <strong>{selectedEvent.title}</strong></div>}
                     </div>
                   </>
                 )}
@@ -238,25 +307,60 @@ function AddDiscountModal({ open, onClose }: { open: boolean; onClose: () => voi
               )} */}
               {/* Customer discount: show customer search */}
               {applicability === 'customer' && (
-                <div className="border rounded-lg px-3 py-2 mb-2" style={{ boxShadow: '0 0 0 2px #111 inset' }}>
+                <div className="border rounded-lg px-3 py-2 mb-2 relative z-40" style={{ boxShadow: '0 0 0 2px #111 inset' }}>
                   <div className="font-medium text-sm mb-1">Customer</div>
-                  <input
-                    value={customerQuery}
-                    onChange={e => setCustomerQuery(e.target.value)}
-                    type="text"
-                    className="w-full border rounded-lg px-3 py-2 text-sm mb-2"
-                    placeholder="Search by name, email, or phone"
-                  />
-                  {customerResults.length > 0 && (
-                    <div className="border rounded bg-white mt-1 max-h-40 overflow-y-auto">
-                      {customerResults.map(c => (
-                        <div key={c.id} onClick={() => { setSelectedCustomer(c); setCustomerQuery(''); setCustomerResults([]); }} className="px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm">
-                          {c.firstName || c.name} {c.lastName || ''} {c.email ? `(${c.email})` : ''}
+                  {!selectedCustomer ? (
+                    <div className="relative">
+                      <input
+                        value={customerQuery}
+                        onChange={e => setCustomerQuery(e.target.value)}
+                        type="text"
+                        className="w-full border rounded-lg px-3 py-2 text-sm mb-2"
+                        placeholder="Search by name, email, or phone"
+                      />
+                      {customerLoading && (
+                        <div className="absolute z-[9999] w-full border rounded-lg bg-white mt-1 px-3 py-2 shadow-2xl text-sm text-gray-500">
+                          Loading customers...
                         </div>
-                      ))}
+                      )}
+                      {!customerLoading && customerQuery && customerResults.length === 0 && (
+                        <div className="absolute z-[9999] w-full border rounded-lg bg-white mt-1 px-3 py-2 shadow-2xl text-sm text-gray-500">
+                          No customers found
+                        </div>
+                      )}
+                      {!customerLoading && customerResults.length > 0 && (
+                        <div className="absolute z-[9999] w-full border rounded bg-white mt-1 max-h-40 overflow-y-auto shadow-2xl">
+                          {customerResults.map(c => (
+                            <div 
+                              key={c.id} 
+                              onClick={() => { 
+                                setSelectedCustomer(c); 
+                                setCustomerQuery(''); 
+                                setCustomerResults([]); 
+                              }} 
+                              className="px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm"
+                            >
+                              {c.firstName || c.name} {c.lastName || ''} {c.email ? `(${c.email})` : ''}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between bg-gray-100 rounded-lg px-3 py-2">
+                      <div className="text-sm">
+                        <span className="text-gray-600">Selected customer:</span>
+                        <span className="font-medium ml-2">{selectedCustomer.email || selectedCustomer.name}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedCustomer(null)}
+                        className="text-red-500 hover:text-red-700 text-sm font-medium"
+                      >
+                        Remove
+                      </button>
                     </div>
                   )}
-                  {selectedCustomer && <div className="mt-2 text-sm">Selected customer: <strong>{selectedCustomer.email || selectedCustomer.name}</strong></div>}
                 </div>
               )}
               {/* Start/end date for general and customer discount */}
@@ -298,16 +402,14 @@ function AddDiscountModal({ open, onClose }: { open: boolean; onClose: () => voi
                   </div>
                 </div>
               )}
-              {/* Minimum subtotal required */}
               <div>
                 <label className="block font-medium mb-1 text-sm">Minimum subtotal required</label>
-                <input type="number" className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="0.00" min="0" />
+                <input value={minSubtotal} onChange={e => setMinSubtotal(e.target.value === '' ? '' : Number(e.target.value))} type="number" className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="0.00" min="0" />
                 <div className="text-gray-500 text-xs">The discount code will only be useable if the provided cart subtotal is reached</div>
               </div>
-              {/* Maximum uses */}
               <div>
                 <label className="block font-medium mb-1 text-sm">Maximum uses</label>
-                <input type="number" className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Maximum uses" min="0" />
+                <input value={maxUses} onChange={e => setMaxUses(e.target.value === '' ? '' : Number(e.target.value))} type="number" className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Maximum uses" min="0" />
                 <div className="text-gray-500 text-xs">Code will only be able to be used the provided number of times</div>
               </div>
               {/* Customer options (only for general/event) */}
@@ -353,7 +455,7 @@ function AddDiscountModal({ open, onClose }: { open: boolean; onClose: () => voi
             </div>
           )}
 
-          <button className="w-full bg-gray-900 text-white py-2 rounded-lg font-semibold text-sm">Submit</button>
+          <button onClick={handleSubmit} className="w-full bg-gray-900 text-white py-2 rounded-lg font-semibold text-sm">Submit</button>
         </div>
       </div>
     </>
@@ -376,6 +478,9 @@ export default function DiscountsTab() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [activeTab, setActiveTab] = useState<'active' | 'inactive'>('active');
   const [showDropdown, setShowDropdown] = useState(false);
+  const [discounts, setDiscounts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [columns, setColumns] = useState<Record<string, boolean>>({
     code: true,
     title: false,
@@ -390,6 +495,34 @@ export default function DiscountsTab() {
   });
 
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    fetchDiscounts();
+  }, [activeTab]);
+
+  const fetchDiscounts = async () => {
+    setLoading(true);
+    try {
+      const { ok, data } = await api.get('/discounts', { params: { status: activeTab, search: searchQuery } });
+      if (ok && Array.isArray(data)) {
+        setDiscounts(data);
+      } else {
+        setDiscounts([]);
+      }
+    } catch (err) {
+      console.error(err);
+      setDiscounts([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchQuery !== undefined) fetchDiscounts();
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   // Close dropdown on outside click
   React.useEffect(() => {
@@ -451,7 +584,7 @@ export default function DiscountsTab() {
         </h2>
         <div className="flex items-center gap-2">
           <div className="relative">
-            <input type="text" placeholder="Search..." className="border rounded-lg py-2 px-4 w-48 focus:outline-none" />
+            <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} type="text" placeholder="Search..." className="border rounded-lg py-2 px-4 w-48 focus:outline-none" />
           </div>
           <div className="relative">
             <button
@@ -513,9 +646,34 @@ export default function DiscountsTab() {
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <td colSpan={Object.values(columns).filter(Boolean).length} className="py-6 px-6 text-gray-500">No results.</td>
-            </tr>
+            {loading && (
+              <tr>
+                <td colSpan={Object.values(columns).filter(Boolean).length} className="py-6 px-6 text-gray-500 text-center">Loading...</td>
+              </tr>
+            )}
+            {!loading && discounts.length === 0 && (
+              <tr>
+                <td colSpan={Object.values(columns).filter(Boolean).length} className="py-6 px-6 text-gray-500">No results.</td>
+              </tr>
+            )}
+            {!loading && discounts.map((discount) => (
+              <tr key={discount.id} className="border-t hover:bg-gray-50">
+                {columns.code && <td className="py-4 px-6 font-medium">{discount.code}</td>}
+                {columns.title && <td className="py-4 px-6">{discount.title}</td>}
+                {columns.amount && <td className="py-4 px-6">{discount.type === 'percentage' ? `${discount.amount}%` : `$${parseFloat(discount.amount).toFixed(2)}`}</td>}
+                {columns.startDate && <td className="py-4 px-6">{discount.startDate ? new Date(discount.startDate).toLocaleDateString() : '-'}</td>}
+                {columns.endDate && <td className="py-4 px-6">{discount.endDate ? new Date(discount.endDate).toLocaleDateString() : '-'}</td>}
+                {columns.minSubtotal && <td className="py-4 px-6">{discount.minSubtotal ? `$${parseFloat(discount.minSubtotal).toFixed(2)}` : '-'}</td>}
+                {columns.maxDiscount && <td className="py-4 px-6">{discount.maxDiscountValue ? `$${parseFloat(discount.maxDiscountValue).toFixed(2)}` : '-'}</td>}
+                {columns.usesRemaining && <td className="py-4 px-6">{discount.maxUses ? `${discount.maxUses - discount.usesCount}` : '∞'}</td>}
+                {columns.status && <td className="py-4 px-6"><span className={`px-2 py-1 rounded text-xs font-medium ${discount.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>{discount.status}</span></td>}
+                {columns.menu && (
+                  <td className="py-4 px-6">
+                    <button className="text-gray-500 hover:text-gray-700">⋮</button>
+                  </td>
+                )}
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
