@@ -81,24 +81,22 @@ export default function Home() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [errors, setErrors] = useState<{ name?: string; desc?: string; date?: string; time?: string; image?: string }>({});
   const [draftEvents, setDraftEvents] = useState<ApiEvent[]>([]);
+  const [publishedEvents, setPublishedEvents] = useState<ApiEvent[]>([]);
   const [showDrafts, setShowDrafts] = useState<boolean>(true);
+  const [showPublished, setShowPublished] = useState<boolean>(true);
   const [showPublishConfirm, setShowPublishConfirm] = useState(false);
   const [isPublishingConfirm, setIsPublishingConfirm] = useState(false);
+  const [eventStatus, setEventStatus] = useState<ApiEvent["status"]>("draft");
 
-  const times = [
-    "09:00 AM",
-    "09:30 AM",
-    "10:00 AM",
-    "10:30 AM",
-    "11:00 AM",
-    "11:30 AM",
-    "12:00 PM",
-    "12:30 PM",
-    "01:00 PM",
-    "01:30 PM",
-    "02:00 PM",
-  ];
-
+  const times = Array.from({ length: 24 * 4 }, (_, idx) => {
+    const totalMinutes = idx * 15; // 15‑minute increments
+    const hour24 = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    const hour12 = ((hour24 + 11) % 12) + 1; // convert to 12h format (1-12)
+    const ampm = hour24 < 12 ? "AM" : "PM";
+    return `${hour12.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")} ${ampm}`;
+  });
+  
   // Load pickup windows and locations for the created event
   const loadPickupLocations = async () => {
     try {
@@ -114,7 +112,9 @@ export default function Home() {
     try {
       const all = await getEvents();
       const drafts = all.filter((e) => (e.status as any) === "draft");
+      const published = all.filter((e) => (e.status as any) === "published");
       setDraftEvents(drafts);
+      setPublishedEvents(published);
     } catch {}
   };
 
@@ -156,6 +156,7 @@ export default function Home() {
       if (ev.defaultPickupWindowId || ev.default_pickup_window_id) {
         setSelectedPickupWindowId(ev.defaultPickupWindowId || ev.default_pickup_window_id);
       }
+      setEventStatus(ev.status || "draft");
     } catch (error) {
       console.error("Error loading event details:", error);
     }
@@ -269,7 +270,42 @@ export default function Home() {
               Create New Event
             </button>
           </div>
-
+          {/* Published Section */}
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-medium">
+                Published <span className="text-gray-500">• {publishedEvents.length}</span>
+              </h3>
+              <button onClick={() => setShowPublished((v) => !v)} className="text-xs border rounded px-2 py-1 text-gray-600 hover:bg-gray-100">
+                {showPublished ? "Hide" : "Show"}
+              </button>
+            </div>
+            {showPublished && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                {publishedEvents.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={async () => {
+                      setShowForm(true);
+                      setCreatedEventId(p.id);
+                      await loadEventDetails(p.id);
+                    }}
+                    className="w-full border rounded-lg shadow-sm p-3 bg-white text-left hover:border-gray-300"
+                  >
+                    <div className="flex justify-between items-center mb-2">
+                      <h4 className="text-sm font-medium truncate" title={p.title}>{p.title || "Untitled"}</h4>
+                      <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">Published</span>
+                    </div>
+                    <p className="text-xs text-gray-500 mb-2">{p.pre_order_date ? new Date(p.pre_order_date).toLocaleDateString() : "No date"}</p>
+                    <span className="text-xs border px-2 py-0.5 rounded bg-gray-50">Edit</span>
+                  </button>
+                ))}
+                {publishedEvents.length === 0 && (
+                  <div className="text-xs text-gray-500">No published events yet</div>
+                )}
+              </div>
+            )}
+          </div>
           {/* Info Box */}
           <div className="border rounded-md bg-white p-4 flex items-center gap-3 mb-6 shadow-sm">
             <button
@@ -284,7 +320,6 @@ export default function Home() {
               <p className="text-xs text-gray-500">Watch our walkthrough video</p>
             </div>
           </div>
-
           {/* Drafts Section */}
           <div className="mb-8">
             <div className="flex items-center justify-between mb-2">
@@ -609,6 +644,7 @@ export default function Home() {
                             }
                             const newId = res.data?.id ?? res.data?.data?.id ?? null;
                             if (newId !== null) setCreatedEventId(newId);
+                            setEventStatus("draft");
                           } else {
                             const res = await updateEvent(createdEventId, {
                               title: eventName.trim(),
@@ -620,7 +656,7 @@ export default function Home() {
                               walk_up_ordering_option: "pickup-windows" as any,
                               hide_open_time: hideOpenTime,
                               hide_from_storefront: hideFromStorefront,
-                              status: "draft",
+                              status: eventStatus,
                             } as any);
                             if (!res.success) {
                               toast.error(res.message || "Failed to save event");
@@ -628,6 +664,7 @@ export default function Home() {
                             }
                           }
                           toast.success("Saved");
+                          await loadDrafts();
                         } catch (e: any) {
                           toast.error(e?.message || "Something went wrong");
                         } finally {
@@ -679,6 +716,7 @@ export default function Home() {
                           }
                           const newId = res.data?.id ?? res.data?.data?.id ?? null;
                           if (newId !== null) setCreatedEventId(newId);
+                          setEventStatus("draft");
                           toast.success("Event created");
                         } else {
                           const res = await updateEvent(createdEventId, {
@@ -691,7 +729,7 @@ export default function Home() {
                             walk_up_ordering_option: "pickup-windows" as any,
                             hide_open_time: hideOpenTime,
                             hide_from_storefront: hideFromStorefront,
-                            status: "draft",
+                            status: eventStatus,
                           } as any);
                           if (!res.success) {
                             toast.error(res.message || "Failed to save event");
@@ -700,6 +738,7 @@ export default function Home() {
                           toast.success("Event updated");
                         }
                         setActiveTab("pickup");
+                        await loadDrafts();
                       } catch (e: any) {
                         toast.error(e?.message || "Something went wrong");
                       } finally {
@@ -1264,7 +1303,10 @@ export default function Home() {
                     const res = await updateEvent(createdEventId, { status: "published" } as any);
                     if (res.success) {
                       toast.success("Event published successfully");
+                      setEventStatus("published");
                       setShowPublishConfirm(false);
+                      setShowForm(false);
+                      await loadDrafts();
                     } else {
                       toast.error(res.message || "Failed to publish event");
                     }

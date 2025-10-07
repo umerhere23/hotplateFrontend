@@ -58,26 +58,23 @@ export default function StorefrontPage({ params }: { params: { name: string } })
     : rawLogo;
   const events: any[] = Array.isArray(data?.events) ? data!.events : [];
   const getStartTs = (ev: any) => {
-    const pd = ev?.defaultPickupWindow?.pickupDate || ev?.preOrderDate || ev?.pre_order_date;
-    const st = ev?.defaultPickupWindow?.startTime || ev?.preOrderTime || ev?.pre_order_time;
-    if (!pd) return 0;
-    const d = new Date(pd);
-    if (st && typeof st === 'string') {
-      if (/am|pm/i.test(st)) {
-        const match = st.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
-        if (match) {
-          let hh = parseInt(match[1], 10);
-          const mm = parseInt(match[2], 10);
-          const ap = match[3].toUpperCase();
-          if (ap === 'PM' && hh < 12) hh += 12;
-          if (ap === 'AM' && hh === 12) hh = 0;
-          d.setHours(hh, mm, 0, 0);
-        }
-      } else {
-        const [hh = '0', mm = '0', ss = '0'] = st.split(':');
-        d.setHours(parseInt(hh, 10) || 0, parseInt(mm, 10) || 0, parseInt(ss, 10) || 0, 0);
+    // Countdown should reflect pre-order open time, not pickup window
+    const dateStr = ev?.preOrderDate || ev?.pre_order_date || ev?.defaultPickupWindow?.pickupDate;
+    if (!dateStr) return 0;
+    const timeStr = ev?.preOrderTime || ev?.pre_order_time || ev?.defaultPickupWindow?.startTime || '00:00';
+    const d = new Date(dateStr + 'T00:00:00');
+    let hh = 0, mm = 0;
+    if (/am|pm/i.test(timeStr)) {
+      const m = timeStr.trim().match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/i);
+      if (m) {
+        hh = parseInt(m[1],10); mm = parseInt(m[2]||'0',10); const ap = m[3].toUpperCase();
+        if (ap==='PM' && hh<12) hh+=12; if (ap==='AM' && hh===12) hh=0;
       }
+    } else {
+      const parts = timeStr.split(':');
+      hh = parseInt(parts[0]||'0',10)||0; mm = parseInt(parts[1]||'0',10)||0;
     }
+    d.setHours(hh, mm, 0, 0);
     return d.getTime();
   };
   const sorted = [...events].sort((a, b) => getStartTs(b) - getStartTs(a));

@@ -538,3 +538,14 @@ export async function getStorefront(): Promise<{
   }
 }
 
+// Orders
+export async function createOrder(payload: any) {
+  try {
+    const { ok, data, message } = await api.post('/orders', { data: payload, pointName: 'createOrder' });
+    if (!ok) return { success: false, message };
+    return { success: true, data: data?.data || data };
+  } catch (e:any) {
+    return { success: false, message: e?.message || 'Network error' };
+  }
+}
+
